@@ -29,3 +29,19 @@ so later builds can update this app without uninstalling it. Its alias is
 `pr182`; store/key passwords are `android`. The private keystore is kept outside
 the checkout at `~/.local/share/opencode-mobile/pr-182.keystore`. Sentry uploads
 are disabled for this personal build; Expo credentials are not required.
+
+## Keyboard follow-up
+
+The session uses the native-stack header's actual height, including the top
+safe area, to align React Native's parent-relative layout with keyboard screen
+coordinates. `react-native-screens` is pinned to 4.19.0, which fixes Android's
+header-height pixel/DP mismatch ([upstream #3402](https://github.com/software-mansion/react-native-screens/pull/3402))
+and supports this app's React Native 0.81/Fabric stack. It is excluded from
+Expo's version alignment so `expo install --fix` cannot silently downgrade it
+to the affected 4.16 release. Keyboard avoidance is disabled while Android's
+keyboard is hidden so its hide-event coordinates cannot leave a bottom gap.
+
+The Actions keyboard job checks actual input/send-button and IME bounds on an
+Android 16 emulator, with the original PR layout as a negative control. It
+covers multiline input, dismissal/reopening, and gesture/three-button navigation;
+screenshots and measurements are in the `keyboard-regression` artifact.

@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import re
 import subprocess
+import struct
 import time
 import xml.etree.ElementTree as ET
 
@@ -71,7 +72,7 @@ def keyboard_top(dump):
     return min(sources)
 
 
-def capture(output, phase, minimum_height):
+def capture(output, phase, minimum_height, bottom_gap):
     root = hierarchy()
     dump = adb("shell", "dumpsys", "window").decode()
     top = keyboard_top(dump)
@@ -80,15 +81,19 @@ def capture(output, phase, minimum_height):
     (output / f"{phase}.png").write_bytes(adb("exec-out", "screencap", "-p"))
     # Ensure a missing composer is not merely an app launch/crash failure.
     assert any(node.get("package") == PACKAGE for node in root.iter("node")), "App not visible"
-    result = {"phase": phase, "keyboard_top": top, "controls": {}}
+    result = {"phase": phase, "keyboard_top": top, "expected_gap": bottom_gap, "controls": {}}
     for name in ("chat-message-input", "chat-send-button"):
         node = find(root, name)
         rect = bounds(node) if node is not None else None
-        visible = rect is not None and rect[3] <= top and rect[3] > rect[1]
+        above = rect is not None and rect[3] <= top and rect[3] > rect[1]
+        visible = above
         if name == "chat-message-input" and rect is not None:
             visible = visible and rect[3] - rect[1] >= minimum_height
-        result["controls"][name] = {"bounds": rect, "above_keyboard": visible}
-    result["pass"] = all(control["above_keyboard"] for control in result["controls"].values())
+            # Moving far above the keyboard is also a failure: retain the same
+            # bottom breathing room as when the keyboard is closed.
+            visible = visible and abs(top - rect[3] - bottom_gap) <= 2
+        result["controls"][name] = {"bounds": rect, "above_keyboard": above, "correctly_positioned": visible}
+    result["pass"] = all(control["correctly_positioned"] for control in result["controls"].values())
     print(json.dumps(result), flush=True)
     return result
 
@@ -109,11 +114,14 @@ def run(apk, output):
     tap(wait("new-session-fab"))
     node = wait("chat-message-input")
     closed = bounds(node)
-    (output / "closed.png").write_bytes(adb("exec-out", "screencap", "-p"))
+    screenshot = adb("exec-out", "screencap", "-p")
+    (output / "closed.png").write_bytes(screenshot)
+    height = struct.unpack(">II", screenshot[16:24])[1]
+    gap = height - closed[3]
     tap(node)
     adb("shell", "input", "text", "Keyboard-check")
     time.sleep(2)
-    results = [capture(output, "single-line", closed[3] - closed[1])]
+    results = [capture(output, "single-line", closed[3] - closed[1], gap)]
     if not results[-1]["pass"]:
         return results
 
@@ -121,14 +129,16 @@ def run(apk, output):
         adb("shell", "input", "keyevent", "KEYCODE_ENTER")
         adb("shell", "input", "text", "Another-line-of-composer-text")
     time.sleep(1)
-    results.append(capture(output, "multiline", closed[3] - closed[1]))
+    results.append(capture(output, "multiline", closed[3] - closed[1], gap))
     adb("shell", "input", "keyevent", "KEYCODE_BACK")
     time.sleep(1)
     node = wait("chat-message-input")
-    assert abs(bounds(node)[3] - closed[3]) <= 2, "Composer did not return after keyboard dismissal"
+    restored = bounds(node)
+    (output / "dismissed.png").write_bytes(adb("exec-out", "screencap", "-p"))
+    assert abs(restored[3] - closed[3]) <= 2, f"Composer did not return after dismissal: {restored} vs {closed}"
     tap(node)
     time.sleep(2)
-    results.append(capture(output, "reopened", closed[3] - closed[1]))
+    results.append(capture(output, "reopened", closed[3] - closed[1], gap))
     return results
 
 
@@ -143,10 +153,11 @@ def main():
         results = run(args.apk, args.output)
         (args.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
         passed = all(result["pass"] for result in results)
-        assert passed != args.expect_overlap, (
-            "Baseline did not reproduce the overlap" if args.expect_overlap
-            else "Composer or send button overlaps the keyboard"
-        )
+        if args.expect_overlap:
+            assert any(not control["above_keyboard"] for result in results
+                       for control in result["controls"].values()), "Baseline did not reproduce the overlap"
+        else:
+            assert passed, "Composer or send button is not positioned correctly above the keyboard"
     finally:
         (args.output / "logcat.txt").write_bytes(adb("logcat", "-d"))
         (args.output / "last-screen.png").write_bytes(adb("exec-out", "screencap", "-p"))

@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StyleSheet,
   useColorScheme,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   ActivityIndicator,
@@ -82,7 +83,18 @@ export default function SessionScreen() {
   const isDark = colorScheme === "dark"
   const insets = useSafeAreaInsets()
   const headerHeight = useHeaderHeight()
+  const [keyboardVisible, setKeyboardVisible] = useState(Keyboard.isVisible())
   const { t } = useTranslation()
+
+  useEffect(() => {
+    if (Platform.OS !== "android") return
+    const show = Keyboard.addListener("keyboardDidShow", () => setKeyboardVisible(true))
+    const hide = Keyboard.addListener("keyboardDidHide", () => setKeyboardVisible(false))
+    return () => {
+      show.remove()
+      hide.remove()
+    }
+  }, [])
 
   const flatListRef = useRef<FlatList>(null)
   const modelSheetRef = useRef<BottomSheet>(null)
@@ -679,6 +691,9 @@ export default function SessionScreen() {
       <KeyboardAvoidingView
         style={[s.container, isDark && s.containerDark]}
         behavior="padding"
+        // Android's hide event still carries a frame; applying a header
+        // offset to it can leave padding after the keyboard has disappeared.
+        enabled={Platform.OS === "ios" || keyboardVisible}
         // onLayout is parent-relative, while the keyboard reports screenY.
         // This screen starts below the native-stack header, whose measured
         // height already includes the top safe area. A status-bar-only offset
