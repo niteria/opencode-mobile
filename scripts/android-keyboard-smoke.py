@@ -88,7 +88,9 @@ def capture(output, phase, minimum_height, bottom_gap):
         above = rect is not None and rect[3] <= top and rect[3] > rect[1]
         visible = above
         if name == "chat-message-input" and rect is not None:
-            visible = visible and rect[3] - rect[1] >= minimum_height
+            # Layout-to-pixel rounding can change a row's height by one pixel
+            # when it moves to a different Y coordinate.
+            visible = visible and rect[3] - rect[1] + 2 >= minimum_height
             # Moving far above the keyboard is also a failure: retain the same
             # bottom breathing room as when the keyboard is closed.
             visible = visible and abs(top - rect[3] - bottom_gap) <= 2
@@ -98,10 +100,10 @@ def capture(output, phase, minimum_height, bottom_gap):
     return result
 
 
-def run(apk, output):
+def run(apk, output, server_port):
     adb("install", "-r", apk)
     adb("shell", "pm", "clear", PACKAGE)
-    adb("reverse", "tcp:4096", "tcp:4096")
+    adb("reverse", "tcp:4096", f"tcp:{server_port}")
     adb("shell", "settings", "put", "secure", "show_ime_with_hard_keyboard", "1")
     adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/cc.agentlabs.opencode.MainActivity")
     tap(wait("telemetry-decline-button"))
@@ -147,10 +149,11 @@ def main():
     parser.add_argument("apk")
     parser.add_argument("output", type=Path)
     parser.add_argument("--expect-overlap", action="store_true")
+    parser.add_argument("--server-port", type=int, default=4096)
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     try:
-        results = run(args.apk, args.output)
+        results = run(args.apk, args.output, args.server_port)
         (args.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
         passed = all(result["pass"] for result in results)
         if args.expect_overlap:
