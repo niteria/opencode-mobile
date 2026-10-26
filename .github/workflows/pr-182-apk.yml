@@ -52,6 +52,8 @@ jobs:
       - uses: android-actions/setup-android@v4
 
       - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
 
       - name: Restore fork signing key
         env:
@@ -105,4 +107,93 @@ jobs:
             apk-manifest.xml
             opencode-pr-182-arm64.apk.sha256
           if-no-files-found: error
+          retention-days: 90
+
+  keyboard:
+    name: Android keyboard regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CI: "true"
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+      SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD: "true"
+      RELEASE_STORE_FILE: pr-182.keystore
+      RELEASE_STORE_PASSWORD: android
+      RELEASE_KEY_ALIAS: pr182
+      RELEASE_KEY_PASSWORD: android
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v4
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: Install dependencies and signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.PR182_KEYSTORE_BASE64 }}
+        run: |
+          npm ci --legacy-peer-deps
+          test -n "$KEYSTORE_BASE64"
+          umask 077
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > android/app/pr-182.keystore
+
+      - name: Build original and fixed keyboard layouts for the emulator
+        run: |
+          # The installed PR build is the negative control. Only its two
+          # keyboard-related files differ; native project and dependencies match.
+          git show '9ac2a20:app/session/[id].tsx' > 'app/session/[id].tsx'
+          git show 9ac2a20:src/lib/keyboard-offset.ts > src/lib/keyboard-offset.ts
+          android/gradlew -p android --no-daemon --max-workers=2 assembleRelease -PreactNativeArchitectures=x86_64
+          cp android/app/build/outputs/apk/release/app-release.apk keyboard-baseline.apk
+          git restore -- 'app/session/[id].tsx'
+          rm src/lib/keyboard-offset.ts
+          android/gradlew -p android --no-daemon --max-workers=2 assembleRelease -PreactNativeArchitectures=x86_64
+          cp android/app/build/outputs/apk/release/app-release.apk keyboard-fixed.apk
+
+      - name: Start fixture server and enable KVM
+        run: |
+          mkdir -p artifacts/keyboard
+          nohup node tests/fixtures/mock-opencode-server.ts --port 4096 > artifacts/keyboard/server.log 2>&1 &
+          printf '%s\n' 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Check actual composer and IME bounds on Android 16
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 36
+          target: google_apis
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -no-audio -no-boot-anim -gpu swiftshader_indirect -no-snapshot
+          script: |
+            adb shell cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.gestural
+            python3 scripts/android-keyboard-smoke.py keyboard-baseline.apk artifacts/keyboard/baseline --expect-overlap
+            python3 scripts/android-keyboard-smoke.py keyboard-fixed.apk artifacts/keyboard/fixed
+            adb shell cmd overlay enable-exclusive --category com.android.internal.systemui.navbar.threebutton
+            python3 scripts/android-keyboard-smoke.py keyboard-fixed.apk artifacts/keyboard/three-button
+
+      - name: Upload keyboard geometry and screenshots
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: keyboard-regression
+          path: artifacts/keyboard
+          if-no-files-found: warn
           retention-days: 90

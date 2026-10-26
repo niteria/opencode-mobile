@@ -14,6 +14,7 @@ import {
 } from "react-native"
 import { useLocalSearchParams, Stack, useRouter, useFocusEffect } from "expo-router"
 import { Ionicons } from "@expo/vector-icons"
+import { useHeaderHeight } from "@react-navigation/elements"
 import { useSafeAreaInsets } from "react-native-safe-area-context"
 import { useTranslation } from "react-i18next"
 import * as ImagePicker from "expo-image-picker"
@@ -42,7 +43,6 @@ import { useConnections } from "../../src/stores/connections"
 import { useAuth } from "../../src/stores/auth"
 import { useCatalog } from "../../src/stores/catalog"
 import { useSpeech } from "../../src/lib/speech"
-import { keyboardVerticalOffset } from "../../src/lib/keyboard-offset"
 
 // --- Builtin slash commands ---
 const BUILTIN_COMMANDS: SlashCommand[] = [
@@ -81,6 +81,7 @@ export default function SessionScreen() {
   const colorScheme = useColorScheme()
   const isDark = colorScheme === "dark"
   const insets = useSafeAreaInsets()
+  const headerHeight = useHeaderHeight()
   const { t } = useTranslation()
 
   const flatListRef = useRef<FlatList>(null)
@@ -677,28 +678,12 @@ export default function SessionScreen() {
 
       <KeyboardAvoidingView
         style={[s.container, isDark && s.containerDark]}
-        // Both platforms use "padding" so the composer/toolbar is pushed up
-        // above the keyboard via JS-measured keyboard height.
-        //
-        // Android previously relied on the native android:windowSoftInputMode
-        // (adjustResize, see AndroidManifest.xml) with behavior={undefined}
-        // to let the OS resize the window (see #70/#53). Since adopting
-        // Expo's mandatory edge-to-edge display, Android no longer resizes
-        // the window when the keyboard opens — the system assumes insets are
-        // handled dynamically — so adjustResize became a no-op and the
-        // bottom toolbar + input were left completely hidden behind the
-        // keyboard (#147). "padding" restores avoidance without depending
-        // on native resize.
-        //
-        // "padding" alone is still not enough on Android, though (#156):
-        // KeyboardAvoidingView measures its own frame in *window* coordinates
-        // but reads the keyboard's screenY in *screen* coordinates, and under
-        // edge-to-edge those origins differ by the status-bar inset — so the
-        // padding lands short by exactly that much and the composer stays
-        // hidden. keyboardVerticalOffset closes the gap; see
-        // src/lib/keyboard-offset.ts for the measured numbers.
         behavior="padding"
-        keyboardVerticalOffset={keyboardVerticalOffset(Platform.OS, insets.top)}
+        // onLayout is parent-relative, while the keyboard reports screenY.
+        // This screen starts below the native-stack header, whose measured
+        // height already includes the top safe area. A status-bar-only offset
+        // misses the toolbar and leaves the composer behind the keyboard.
+        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : headerHeight}
       >
         {/* Session info pulldown */}
         <SessionInfo
