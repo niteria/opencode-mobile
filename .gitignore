@@ -28,3 +28,11 @@ android/app/src/main/assets/index.android.bundle
 artifacts/screenshots/
 positive-S*.png
 negative-S*.png
+
+# Local Android/Nix build outputs and emulator diagnostics.
+result
+result-*
+artifacts/
+android/.cxx/
+android/app/.cxx/
+android/local.properties

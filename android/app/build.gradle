@@ -130,7 +130,9 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            signingConfig signingConfigs.findByName('release') ?: signingConfigs.debug
+            if (findProperty('opencodeUnsigned') != 'true') {
+                signingConfig signingConfigs.findByName('release') ?: signingConfigs.debug
+            }
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
