@@ -1,5 +1,33 @@
 # OpenCode Mobile
 
+## About this fork
+
+This is **[niteria/opencode-mobile](https://github.com/niteria/opencode-mobile)**,
+a fork of [dzianisv/opencode-mobile](https://github.com/dzianisv/opencode-mobile).
+The default branch, **`master`**, includes the rebased
+[upstream PR #182](https://github.com/dzianisv/opencode-mobile/pull/182) and subsequent work:
+
+- **PR #182's fixes** for chat scrolling, SSE recovery and startup, stale
+  transcripts, text copying/selection, and session listing.
+- **Further Android keyboard fixes:** use the actual navigation-header height,
+  update `react-native-screens` to fix its pixel/DP mismatch, and clear keyboard
+  padding on dismissal. Emulator regression checks cover multiline input,
+  keyboard reopening, and gesture/three-button navigation.
+- **Side-by-side Android builds:** the app installs as **OpenCode PR 182**
+  (`cc.agentlabs.opencode.pr182`), with a persistent fork signing key for updates.
+- **Nix builds:** a pinned development toolchain, incremental local builds, and
+  a sandboxed APK build with locked npm and Gradle dependencies.
+
+**Download this fork:** open a successful
+[Build PR 182 APK run](https://github.com/niteria/opencode-mobile/actions/workflows/pr-182-apk.yml)
+and download `opencode-pr-182-arm64.apk` from its artifacts.
+See the [fork build instructions](distribution/pr-182-build.md) for installation,
+Nix commands, and signing details.
+
+## Upstream project
+
+The following describes the upstream project and its distribution channels.
+
 **The open-source Android client for the [opencode](https://github.com/sst/opencode) AI coding agent.**
 AI-assisted coding from your phone — Android, via Google Play, F-Droid, or a direct APK.
 

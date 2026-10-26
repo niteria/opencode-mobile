@@ -1,6 +1,6 @@
 # Personal PR #182 Android build
 
-Branch: `build/pr-182` in `niteria/opencode-mobile`.
+Default branch: `master` in `niteria/opencode-mobile`.
 
 The 14 commits from [upstream PR #182](https://github.com/dzianisv/opencode-mobile/pull/182)
 at `1181372fea345cccc13969386f5a85554db67794` were rebased onto upstream `main`
@@ -19,7 +19,7 @@ in this separate copy; HTTP connections are supported.
 
 ## Rebuild
 
-Push to `build/pr-182`, or choose **Re-run all jobs** on an existing workflow run.
+Push to `master`, use **Run workflow**, or choose **Re-run all jobs** on an existing workflow run.
 The workflow checks version metadata, TypeScript, and unit tests before building
 a standalone release-mode APK from the committed Android project. It verifies
 the signature, application ID, label, ARM64 ABI, HTTP support, and URL scheme.

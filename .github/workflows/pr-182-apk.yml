@@ -2,7 +2,7 @@ name: Build PR 182 APK
 
 on:
   push:
-    branches: [build/pr-182]
+    branches: [master]
   workflow_dispatch:
 
 permissions:
