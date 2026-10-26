@@ -153,14 +153,16 @@ jobs:
 
       - name: Build original and fixed keyboard layouts for the emulator
         run: |
-          # The installed PR build is the negative control. Only its two
-          # keyboard-related files differ; native project and dependencies match.
-          git show '9ac2a20:app/session/[id].tsx' > 'app/session/[id].tsx'
-          git show 9ac2a20:src/lib/keyboard-offset.ts > src/lib/keyboard-offset.ts
+          # Restore the original keyboard layout AND its native activity, plus
+          # the selection helpers that screen imports. This negative control
+          # must not accidentally inherit the native IME fix under test.
+          files=('app/session/[id].tsx' 'android/app/src/main/java/cc/agentlabs/opencode/MainActivity.kt' 'src/components/chat/index.ts')
+          legacy=('src/lib/keyboard-offset.ts' 'src/lib/message-copy-text.ts' 'src/components/chat/SelectableTextModal.tsx')
+          for path in "${files[@]}" "${legacy[@]}"; do git show "9ac2a20:$path" > "$path"; done
           android/gradlew -p android --no-daemon --max-workers=2 assembleRelease -PreactNativeArchitectures=x86_64
           cp android/app/build/outputs/apk/release/app-release.apk keyboard-baseline.apk
-          git restore -- 'app/session/[id].tsx'
-          rm src/lib/keyboard-offset.ts
+          git restore -- "${files[@]}"
+          rm "${legacy[@]}"
           android/gradlew -p android --no-daemon --max-workers=2 assembleRelease -PreactNativeArchitectures=x86_64
           cp android/app/build/outputs/apk/release/app-release.apk keyboard-fixed.apk
 

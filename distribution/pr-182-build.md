@@ -1,11 +1,13 @@
-# Personal PR #182 Android build
+# Fork Android build (PRs #182, #216 and #218)
 
 Default branch: `master` in `niteria/opencode-mobile`.
 
 The 14 commits from [upstream PR #182](https://github.com/dzianisv/opencode-mobile/pull/182)
 at `1181372fea345cccc13969386f5a85554db67794` were rebased onto upstream `main`
-at `f30c59fce8d7d7871c76cacdf86d636784a591b8`. All 14 patches are unchanged
-according to `git range-diff`; the rebased tip is `ef373f3`.
+at `f30c59fce8d7d7871c76cacdf86d636784a591b8`. The initial `git range-diff`
+confirmed all 14 rebased patches were unchanged; that tip is `ef373f3`.
+PR #218 at `edc7aad` (including #216) is subsequently merged with the
+reconciliations documented in the [README provenance section](../README.md#provenance).
 
 ## Install
 
@@ -32,9 +34,12 @@ are disabled for this personal build; Expo credentials are not required.
 
 ## Keyboard follow-up
 
-The session uses the native-stack header's actual height, including the top
-safe area, to align React Native's parent-relative layout with keyboard screen
-coordinates. `react-native-screens` is pinned to 4.19.0, which fixes Android's
+Android 15+ uses #216's native `WindowInsetsCompat.Type.ime()` listener at the
+activity root. JavaScript keyboard avoidance is disabled on that path so
+spacing is applied once. The Expo plugin preserves the native fix after prebuild.
+
+Older Android uses the native-stack header's actual height, including the top
+safe area, for its fallback. `react-native-screens` is pinned to 4.19.0, which fixes Android's
 header-height pixel/DP mismatch ([upstream #3402](https://github.com/software-mansion/react-native-screens/pull/3402))
 and supports this app's React Native 0.81/Fabric stack. It is excluded from
 Expo's version alignment so `expo install --fix` cannot silently downgrade it
@@ -43,7 +48,7 @@ keyboard is hidden so its hide-event coordinates cannot leave a bottom gap.
 
 The Actions keyboard job checks actual input/send-button and IME bounds on an
 Android 16 emulator, with the original PR layout as a negative control. It
-covers multiline input, dismissal/reopening, and gesture/three-button navigation;
+covers multiline input, dismissal/reopening, process recreation, and gesture/three-button navigation;
 screenshots and measurements are in the `keyboard-regression` artifact.
 
 ## Local builds with Nix (x86_64 Linux)

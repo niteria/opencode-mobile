@@ -2,6 +2,7 @@ import { useState } from "react"
 import { View, Text, TouchableOpacity, StyleSheet, useColorScheme, Platform } from "react-native"
 import * as Clipboard from "expo-clipboard"
 import { WideScroll } from "../WideScroll"
+import { wideTextSelection } from "../../lib/scroll-config"
 
 interface Props {
   code: string
@@ -11,6 +12,7 @@ interface Props {
 export function CodeBlock({ code, language }: Props) {
   const isDark = useColorScheme() === "dark"
   const [copied, setCopied] = useState(false)
+  const sel = wideTextSelection(Platform.OS)
 
   const copy = async () => {
     try {
@@ -29,7 +31,7 @@ export function CodeBlock({ code, language }: Props) {
         </TouchableOpacity>
       </View>
       <WideScroll testID="code-block-scroll" contentContainerStyle={styles.codeScroll}>
-        <Text style={[styles.code, isDark && styles.codeDark]} selectable>
+        <Text style={[styles.code, isDark && styles.codeDark]} selectable={sel.selectable}>
           {code}
         </Text>
       </WideScroll>

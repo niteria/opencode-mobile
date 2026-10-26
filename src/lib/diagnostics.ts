@@ -11,6 +11,8 @@ import { type Classification, type ProbeAttempt, type ParsedUrl, parseUrl, class
 import { chatwootConfigured, sendSupportReport } from "./chatwoot"
 import { hasTelemetryConsent, loadTelemetryConsent } from "./telemetry"
 import { redactHostAndUrls } from "./scrub"
+import { probeApiHealth } from "./diagnostics-health"
+import { buildRequestHeaders } from "./headers"
 
 export type { Classification, ProbeAttempt } from "./diagnostics-classify"
 
@@ -76,8 +78,7 @@ export async function probeConnection(url: string, auth?: { username: string; pa
   if (parsed.host) seenHosts.add(parsed.host)
   log.info("diag", "probe start", url, "parsed", JSON.stringify(parsed))
 
-  const headers: Record<string, string> = {}
-  if (auth) headers["Authorization"] = `Basic ${btoa(`${auth.username}:${auth.password}`)}`
+  const headers = buildRequestHeaders({ auth })
 
   let health: ProbeAttempt
   let root: ProbeAttempt
@@ -86,7 +87,7 @@ export async function probeConnection(url: string, auth?: { username: string; pa
   if (parsed.valid) {
     const base = `${parsed.scheme}://${parsed.host}:${parsed.port}`
     ;[health, root, internet] = await Promise.all([
-      timedFetch("health", `${base}/global/health`, { headers }),
+      probeApiHealth(base, auth),
       timedFetch("server-root", `${base}/`, { headers }, { requireOk: false }),
       timedFetch("internet", INTERNET_CHECK_URL),
     ])

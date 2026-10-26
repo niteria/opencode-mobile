@@ -1,14 +1,17 @@
 #!/usr/bin/env python3
 """Check real composer/IME bounds using adb, with an optional broken baseline.
 
-Requires the fixture server on host port 4096 and a running Android emulator.
+Requires a fixture or isolated OpenCode server and a running Android emulator.
+Use --server-port and, for authentication, the OPENCODE_TEST_PASSWORD environment variable.
 No model, real server, or device-specific dimensions are used.
 """
 
 import argparse
 import json
+import os
 from pathlib import Path
 import re
+import shlex
 import subprocess
 import struct
 import time
@@ -91,9 +94,9 @@ def capture(output, phase, minimum_height, bottom_gap):
             # Layout-to-pixel rounding can change a row's height by one pixel
             # when it moves to a different Y coordinate.
             visible = visible and rect[3] - rect[1] + 2 >= minimum_height
-            # Moving far above the keyboard is also a failure: retain the same
-            # bottom breathing room as when the keyboard is closed.
-            visible = visible and abs(top - rect[3] - bottom_gap) <= 2
+            # IME root insets remove the navigation bar's safe-area padding.
+            # Allow that smaller gap, but reject overlap or excessive lifting.
+            visible = visible and -2 <= top - rect[3] <= bottom_gap + 2
         result["controls"][name] = {"bounds": rect, "above_keyboard": above, "correctly_positioned": visible}
     result["pass"] = all(control["correctly_positioned"] for control in result["controls"].values())
     print(json.dumps(result), flush=True)
@@ -111,6 +114,18 @@ def run(apk, output, server_port):
     tap(wait("connect-ip-input"))
     adb("shell", "input", "text", "127.0.0.1:4096")
     adb("shell", "input", "keyevent", "KEYCODE_BACK")
+    password = os.environ.get("OPENCODE_TEST_PASSWORD")
+    if password:
+        field = wait("connect-password-input")
+        minimum = bounds(field)[3] - bounds(field)[1]
+        tap(field)
+        adb("shell", "input", "text", shlex.quote(password))
+        field = wait("connect-password-input")
+        rect = bounds(field)
+        top = keyboard_top(adb("shell", "dumpsys", "window").decode())
+        assert rect[3] <= top and rect[3] - rect[1] + 2 >= minimum, "Connection password field is covered"
+        (output / "connection-password.png").write_bytes(adb("exec-out", "screencap", "-p"))
+        adb("shell", "input", "keyevent", "KEYCODE_BACK")
     tap(wait("connect-submit-button"))
     wait("connection-status-dot")
     tap(wait("new-session-fab"))
@@ -141,6 +156,24 @@ def run(apk, output, server_port):
     tap(node)
     time.sleep(2)
     results.append(capture(output, "reopened", closed[3] - closed[1], gap))
+
+    # Verify actual encrypted draft persistence across process recreation,
+    # beyond the in-memory draft-storage unit tests.
+    expected = wait("chat-message-input").get("text")
+    assert expected and "Keyboard-check" in expected
+    adb("shell", "input", "keyevent", "KEYCODE_HOME")
+    time.sleep(1)
+    adb("shell", "am", "force-stop", PACKAGE)
+    adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/cc.agentlabs.opencode.MainActivity")
+    deadline = time.monotonic() + 30
+    while time.monotonic() < deadline:
+        node = wait("chat-message-input")
+        if node.get("text") == expected:
+            break
+        time.sleep(1)
+    assert node.get("text") == expected, "Draft did not survive process recreation exactly"
+    (output / "draft-restored.png").write_bytes(adb("exec-out", "screencap", "-p"))
+    (output / "draft-restored.json").write_text(json.dumps({"pass": True, "characters": len(expected)}) + "\n")
     return results
 
 

@@ -25,9 +25,8 @@ export interface SessionListParams {
 // exhausted below.
 export interface SessionListPage {
   sessions: Session[]
-  // time.updated of the last row, from the x-next-cursor header; absent on
-  // the final page.
-  nextCursor?: number
+  // Legacy time.updated cursors and v2 opaque cursors; absent on the final page.
+  nextCursor?: number | string
 }
 
 export interface SessionListTransport {
@@ -74,7 +73,7 @@ export function legacySessionQuery(params?: SessionListParams): string {
 export const GLOBAL_PAGE_LIMIT = 200
 export const MAX_GLOBAL_PAGES = 10
 
-export function experimentalPageQuery(cursor?: number): string {
+export function experimentalPageQuery(cursor?: number | string): string {
   const query = new URLSearchParams()
   query.set("limit", String(GLOBAL_PAGE_LIMIT))
   if (cursor != null) query.set("cursor", String(cursor))

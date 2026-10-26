@@ -1,5 +1,6 @@
 import { View, Text, StyleSheet, Platform } from "react-native"
 import { WideScroll } from "../WideScroll"
+import { wideTextSelection } from "../../lib/scroll-config"
 import { computeDiff } from "./diff-compute"
 
 const mono = Platform.OS === "ios" ? "Menlo" : "monospace"
@@ -12,11 +13,12 @@ interface Props {
 
 export function DiffView({ before, after, isDark }: Props) {
   const lines = computeDiff(before, after)
+  const sel = wideTextSelection(Platform.OS)
 
   if (lines.length === 0) return null
 
   return (
-    <View style={[s.container, isDark && s.containerDark]}>
+    <View style={[s.container, isDark && s.containerDark]} testID="diff-view">
       <WideScroll testID="diff-view-scroll" contentContainerStyle={{ paddingRight: 16 }}>
         <View>
           {lines.map((line, idx) => (
@@ -38,7 +40,7 @@ export function DiffView({ before, after, isDark }: Props) {
                   line.type === "add" && s.addText,
                   line.type === "remove" && s.removeText,
                 ]}
-                selectable
+                selectable={sel.selectable}
               >
                 {line.text}
               </Text>

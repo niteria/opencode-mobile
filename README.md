@@ -4,15 +4,21 @@
 
 This is **[niteria/opencode-mobile](https://github.com/niteria/opencode-mobile)**,
 a fork of [dzianisv/opencode-mobile](https://github.com/dzianisv/opencode-mobile).
-The default branch, **`master`**, includes the rebased
-[upstream PR #182](https://github.com/dzianisv/opencode-mobile/pull/182) and subsequent work:
+The default branch, **`master`**, combines the rebased
+[PR #182](https://github.com/dzianisv/opencode-mobile/pull/182) with
+[PR #216](https://github.com/dzianisv/opencode-mobile/pull/216),
+[PR #218](https://github.com/dzianisv/opencode-mobile/pull/218), and the integration work below.
 
 - **PR #182's fixes** for chat scrolling, SSE recovery and startup, stale
   transcripts, text copying/selection, and session listing.
-- **Further Android keyboard fixes:** use the actual navigation-header height,
-  update `react-native-screens` to fix its pixel/DP mismatch, and clear keyboard
-  padding on dismissal. Emulator regression checks cover multiline input,
-  keyboard reopening, and gesture/three-button navigation.
+- **OpenCode 1.x and 2 compatibility:** authenticated protocol detection,
+  PermissionV2 requests, session-scoped replies, forms, and foreground/SSE recovery.
+- **Draft and prompt preservation:** encrypted per-session drafts, restoration
+  after process recreation, and exact long prompts without the old 10k limit.
+- **Native Android keyboard handling:** Android 15+ reserves IME space at the
+  activity root. Older Android retains the header-aware fallback. Emulator
+  checks cover multiline input, reopening, both navigation modes, password
+  fields, and draft restoration.
 - **Side-by-side Android builds:** the app installs as **OpenCode PR 182**
   (`cc.agentlabs.opencode.pr182`), with a persistent fork signing key for updates.
 - **Nix builds:** a pinned development toolchain, incremental local builds, and
@@ -23,6 +29,49 @@ The default branch, **`master`**, includes the rebased
 and download `opencode-pr-182-arm64.apk` from its artifacts.
 See the [fork build instructions](distribution/pr-182-build.md) for installation,
 Nix commands, and signing details.
+
+### Provenance
+
+Original commits from #218 (including #216) are retained through a merge.
+The table distinguishes those imports from adaptations made in this fork.
+
+| Source | Imported revision / attribution | Contribution |
+| --- | --- | --- |
+| [#182](https://github.com/dzianisv/opencode-mobile/pull/182) — @omgoshjosh | `1181372`, rebased as 14 commits ending at `ef373f3` on upstream `f30c59f` | Streaming auto-scroll, global session pagination, native horizontal scrolling, copy/selection, SSE recovery and chat fixes. |
+| [#210](https://github.com/dzianisv/opencode-mobile/pull/210) — @xtiang7c0 | `42113c0`, carried by #216 as `6df85de` | Native Android 15+ IME root insets and an Expo prebuild plugin. |
+| [#216](https://github.com/dzianisv/opencode-mobile/pull/216) — @meramsey | `6b153be`, included in #218 | PermissionV2 event normalization and connection-screen keyboard handling. |
+| [#209](https://github.com/dzianisv/opencode-mobile/pull/209) — @bluetoe-99 | Carried by #218 in `4bf0380` | v1/v2 transports, event normalization, and message-selection UI. |
+| [#211](https://github.com/dzianisv/opencode-mobile/pull/211) — @Dre4my26 | Carried by #218 as `83da1ac` | Missing-credential versus rejected-credential diagnostics. |
+| [#191](https://github.com/dzianisv/opencode-mobile/pull/191) — @chliny | Draft-preservation work adapted by #218 | Per-session unsent drafts. |
+| [#218](https://github.com/dzianisv/opencode-mobile/pull/218) — @meramsey | Merged at `edc7aad` | Lifecycle/state reconciliation, encrypted drafts, long prompts, v2 compatibility and execution-error display. |
+| This fork | Follow-up work on `master`; initial Nix build in `8a364c4` | Side-by-side identity/signing, Nix builds, regression coverage, and the reconciliation below. |
+
+**Integration decisions and fixes:**
+
+- #216's native IME handler owns spacing on Android 15+; the additional
+  keyboard-controller dependency from #218 is omitted. The `react-native-screens`
+  4.19 header fix remains for older Android's fallback.
+- #182's paginated lists, streaming auto-scroll, native `WideScroll`, dark-mode
+  contrast and speech cleanup are retained. #218's explicit Select/Edit buttons
+  and full-message text sheet extend the copy UI.
+- API detection requires a JSON identity; an authentication challenge cannot
+  establish a protocol version. Saved connections are rechecked so upgrading a
+  server at the same URL works, with the saved protocol as an offline fallback.
+  Connection diagnostics share that detection, including preview health routes.
+- PermissionV2 requests on 1.x servers use their v2 reply endpoints. v2 lists
+  follow `cursor.next`, and session creation carries the selected location.
+- Live-preview testing added `/api/health`, rename, form-cancel and revert-clear
+  fallbacks, status-route compatibility, and `sessionID`/partial-session event
+  handling that preserves existing session metadata.
+- Android version code **44** is aligned across native/Expo metadata and changelogs;
+  the existing `cc.agentlabs.opencode.pr182` app ID and signing key support updates.
+
+**Verification:** the SDK was checked against a live 1.18.30 server and an isolated
+official OpenCode 2 preview (`0.0.0-beta-19271`). The v2 check covered 205 created,
+paged and deleted sessions, 205 live creation events, selected locations,
+authentication, renaming, status, providers/agents, permission replies, and form
+replies/cancellation. Native Android 16 emulator checks cover keyboard geometry
+and encrypted draft restoration. See [compatibility and test details](docs/compatibility-and-lifecycle.md).
 
 ## Upstream project
 

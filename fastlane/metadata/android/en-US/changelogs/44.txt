@@ -1,0 +1,5 @@
+v0.4.15 — niteria fork: integrate upstream PRs #216 and #218
+
+Native Android keyboard insets, v1/v2 API compatibility, pending permission recovery,
+encrypted session drafts, and exact long prompts. Includes PR #182 pagination and
+streaming auto-scroll, side-by-side signing, and Nix builds.

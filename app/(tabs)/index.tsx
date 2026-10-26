@@ -22,7 +22,7 @@ import { useTranslation } from "react-i18next"
 import { useSessions } from "../../src/stores/sessions"
 import { useConnections } from "../../src/stores/connections"
 import { useEvents } from "../../src/stores/events"
-import { isHealthy } from "../../src/lib/sse-liveness"
+import { isHealthy } from "../../src/lib/sse-lifecycle"
 import { useCatalog } from "../../src/stores/catalog"
 import type BottomSheet from "@gorhom/bottom-sheet"
 import type { Session, Project } from "../../src/lib/sdk"
@@ -200,7 +200,7 @@ export default function SessionsScreen() {
   // all groups start expanded (#67).
   const [collapsedDirs, setCollapsedDirs] = useState<Set<string>>(new Set())
   // The indicator tracks the transport, not "did we try to connect" — see
-  // src/lib/sse-liveness.ts.
+  // src/lib/sse-lifecycle.ts.
   const transportHealthy = useEvents((s) => isHealthy(s.transport))
 
   const toggleGroup = useCallback((directory: string) => {
