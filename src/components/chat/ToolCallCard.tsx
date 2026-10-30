@@ -1,9 +1,10 @@
 import { useState, useCallback } from "react"
-import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Platform } from "react-native"
+import { View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform } from "react-native"
 import { Ionicons } from "@expo/vector-icons"
 import { useTranslation } from "react-i18next"
 import type { Part } from "../../lib/sdk"
 import { DiffView } from "./DiffView"
+import { ToolOutputScroll } from "../ToolOutputScroll"
 
 const TOOL_ICONS: Record<string, string> = {
   read: "glasses-outline",
@@ -41,7 +42,7 @@ function BashDetail({ input, output, isDark }: { input: unknown; output: unknown
     <View style={s.detailSection}>
       {typeof cmd === "string" && (
         <View style={[s.codeBlock, isDark && s.codeBlockDark]}>
-          <Text style={[s.codePre, isDark && s.codePteDark]} selectable>
+          <Text style={[s.codePre, isDark && s.codePteDark]} selectable={Platform.OS === "ios"}>
             <Text style={s.codePrompt}>$ </Text>
             {cmd}
           </Text>
@@ -49,7 +50,7 @@ function BashDetail({ input, output, isDark }: { input: unknown; output: unknown
       )}
       {out !== undefined && out.length > 0 && (
         <View style={[s.codeBlock, isDark && s.codeBlockDark, { marginTop: 6 }]}>
-          <Text style={[s.codePre, isDark && s.codePteDark]} selectable numberOfLines={80}>
+          <Text style={[s.codePre, isDark && s.codePteDark]} selectable={Platform.OS === "ios"}>
             {out}
           </Text>
         </View>
@@ -87,7 +88,7 @@ function WriteDetail({ input, isDark }: { input: unknown; isDark: boolean }) {
       )}
       {typeof content === "string" && content.length > 0 && (
         <View style={[s.codeBlock, isDark && s.codeBlockDark, { marginTop: 6 }]}>
-          <Text style={[s.codePre, isDark && s.codePteDark]} selectable numberOfLines={40}>
+          <Text style={[s.codePre, isDark && s.codePteDark]} selectable={Platform.OS === "ios"}>
             {content}
           </Text>
         </View>
@@ -127,7 +128,7 @@ function EditDetail({ input, output, isDark }: { input: unknown; output: unknown
       )}
       {text && (
         <View style={[s.codeBlock, isDark && s.codeBlockDark, { marginTop: 6 }]}>
-          <Text style={[s.codePre, isDark && s.codePteDark]} selectable numberOfLines={40}>
+          <Text style={[s.codePre, isDark && s.codePteDark]} selectable={Platform.OS === "ios"}>
             {text}
           </Text>
         </View>
@@ -142,7 +143,7 @@ function PatchDetail({ input, isDark }: { input: unknown; isDark: boolean }) {
     <View style={s.detailSection}>
       {typeof patch === "string" && patch.length > 0 && (
         <View style={[s.codeBlock, isDark && s.codeBlockDark]}>
-          <Text style={[s.codePre, isDark && s.codePteDark]} selectable numberOfLines={60}>
+          <Text style={[s.codePre, isDark && s.codePteDark]} selectable={Platform.OS === "ios"}>
             {patch}
           </Text>
         </View>
@@ -167,7 +168,7 @@ function GlobGrepDetail({ input, output, isDark }: { input: unknown; output: unk
       )}
       {results && results.length > 0 && (
         <View style={[s.codeBlock, isDark && s.codeBlockDark, { marginTop: 6 }]}>
-          <Text style={[s.codePre, isDark && s.codePteDark]} selectable numberOfLines={30}>
+          <Text style={[s.codePre, isDark && s.codePteDark]} selectable={Platform.OS === "ios"}>
             {results}
           </Text>
         </View>
@@ -198,7 +199,7 @@ function TaskDetail({ input, isDark }: { input: unknown; isDark: boolean }) {
       {typeof description === "string" && <Text style={[s.detailMeta, isDark && s.detailMetaDark]}>{description}</Text>}
       {typeof prompt === "string" && prompt.length > 0 && (
         <View style={[s.codeBlock, isDark && s.codeBlockDark, { marginTop: 6 }]}>
-          <Text style={[s.codePre, isDark && s.codePteDark]} selectable numberOfLines={20}>
+          <Text style={[s.codePre, isDark && s.codePteDark]} selectable={Platform.OS === "ios"}>
             {prompt}
           </Text>
         </View>
@@ -245,7 +246,7 @@ function GenericDetail({ input, output, isDark }: { input: unknown; output: unkn
   return (
     <View style={s.detailSection}>
       <View style={[s.codeBlock, isDark && s.codeBlockDark]}>
-        <Text style={[s.codePre, isDark && s.codePteDark]} selectable numberOfLines={30}>
+        <Text style={[s.codePre, isDark && s.codePteDark]} selectable={Platform.OS === "ios"}>
           {text}
         </Text>
       </View>
@@ -327,18 +328,23 @@ export function ToolCallCard({ tool, isDark }: Props) {
   }, [hasDetail])
 
   return (
-    <TouchableOpacity
+    <View
       style={[
         s.card,
         isDark && s.cardDark,
         status === "error" && s.cardError,
         status === "error" && isDark && s.cardErrorDark,
       ]}
-      onPress={toggle}
-      activeOpacity={hasDetail ? 0.7 : 1}
     >
       {/* Header row */}
-      <View style={s.header}>
+      <TouchableOpacity
+        style={s.header}
+        onPress={toggle}
+        activeOpacity={hasDetail ? 0.7 : 1}
+        accessibilityRole="button"
+        accessibilityState={{ expanded }}
+        testID={`tool-toggle-${tool.id}`}
+      >
         <View style={s.headerLeft}>
           <Ionicons name={icon as any} size={16} color={color} />
           <Text style={[s.name, isDark && s.nameDark]} numberOfLines={1}>
@@ -358,19 +364,19 @@ export function ToolCallCard({ tool, isDark }: Props) {
             />
           )}
         </View>
-      </View>
+      </TouchableOpacity>
 
       {/* Error banner */}
       {error && !expanded && <ErrorBanner message={error} isDark={isDark} />}
 
       {/* Expanded detail */}
       {expanded && (
-        <ScrollView style={s.detailScroll} nestedScrollEnabled showsVerticalScrollIndicator={false}>
+        <ToolOutputScroll style={s.detailScroll} testID={`tool-output-${tool.id}`}>
           {error && <ErrorBanner message={error} isDark={isDark} />}
           <ToolDetail tool={tool} isDark={isDark} />
-        </ScrollView>
+        </ToolOutputScroll>
       )}
-    </TouchableOpacity>
+    </View>
   )
 }
 

@@ -35,6 +35,13 @@
       "disabledNotice": "Notifications are disabled at the system level. Enable them in Settings to receive alerts."
     },
     "privacy": {
+      "testReport": {
+        "label": "Send test crash report",
+        "description": "Send a test error to Sentry without closing the app",
+        "sending": "Sending test report…",
+        "submitted": "Test report queued",
+        "failed": "Could not submit the test report. Check your connection and crash-reporting setting."
+      },
       "crashReporting": {
         "label": "Crash Reports & Usage Analytics",
         "description": "Share anonymous crash reports (Sentry) and usage analytics (PostHog) to help improve OpenCode. Diagnostic reports you share are also delivered to our support inbox. No code or prompts are included."

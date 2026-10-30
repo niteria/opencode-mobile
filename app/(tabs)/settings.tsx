@@ -22,6 +22,7 @@ import {
 } from "../../src/lib/notifications"
 import type { Category } from "../../src/lib/notifications"
 import { hasTelemetryConsent, setTelemetryConsent } from "../../src/lib/telemetry"
+import { sendTestReport, sentryConfigured } from "../../src/lib/sentry"
 import { PRIVACY_POLICY_URL } from "../../src/lib/links"
 import { CURRENT_VERSION, checkForUpdate, type AvailableUpdate } from "../../src/lib/update-check"
 import type { LocalePreference } from "../../src/lib/i18n/locale-resolve"
@@ -33,6 +34,7 @@ function SettingRow({
   isDark,
   right,
   onPress,
+  testID,
 }: {
   icon: keyof typeof Ionicons.glyphMap
   label: string
@@ -40,6 +42,7 @@ function SettingRow({
   isDark: boolean
   right?: React.ReactNode
   onPress?: () => void
+  testID?: string
 }) {
   const content = (
     <View style={[styles.settingRow, isDark && styles.settingRowDark]}>
@@ -55,7 +58,7 @@ function SettingRow({
   )
 
   if (onPress) {
-    return <TouchableOpacity onPress={onPress}>{content}</TouchableOpacity>
+    return <TouchableOpacity onPress={onPress} testID={testID}>{content}</TouchableOpacity>
   }
 
   return content
@@ -79,6 +82,7 @@ export default function SettingsScreen() {
   const { notifications, setNotification, locale, setLocale } = useSettings()
   const [osGranted, setOsGranted] = useState<boolean | null>(null)
   const [telemetryUpdating, setTelemetryUpdating] = useState(false)
+  const [sendingTest, setSendingTest] = useState(false)
 
   // Settings is where a user goes to ask "what am I running?". Answer it, and if
   // a newer build exists say so here too — the banner on the sessions list is
@@ -240,12 +244,34 @@ export default function SettingsScreen() {
           right={
             <Switch
               value={crashReporting}
+              testID="crash-reporting-toggle"
               onValueChange={handleCrashReportingToggle}
               disabled={telemetryUpdating}
               trackColor={{ false: "#767577", true: "#22c55e" }}
             />
           }
         />
+        {crashReporting && sentryConfigured() && (
+          <SettingRow
+            icon="bug-outline"
+            label={t("settings.privacy.testReport.label")}
+            description={t(sendingTest ? "settings.privacy.testReport.sending" : "settings.privacy.testReport.description")}
+            isDark={isDark}
+            testID="sentry-test-report"
+            onPress={async () => {
+              if (sendingTest) return
+              setSendingTest(true)
+              try {
+                const id = await sendTestReport()
+                Alert.alert(t("settings.privacy.testReport.submitted"), id)
+              } catch {
+                Alert.alert(t("settings.privacy.testReport.failed"))
+              } finally {
+                setSendingTest(false)
+              }
+            }}
+          />
+        )}
         <SettingRow
           icon="document-text"
           label={t("settings.privacy.privacyPolicy.label")}

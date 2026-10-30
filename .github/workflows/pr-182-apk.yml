@@ -20,6 +20,10 @@ jobs:
       CI: "true"
       SENTRY_DISABLE_AUTO_UPLOAD: "true"
       SENTRY_DISABLE_NATIVE_DEBUG_UPLOAD: "true"
+      EXPO_PUBLIC_SENTRY_DSN: ${{ secrets.EXPO_PUBLIC_SENTRY_DSN }}
+      SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       RELEASE_STORE_FILE: pr-182.keystore
       RELEASE_STORE_PASSWORD: android
       RELEASE_KEY_ALIAS: pr182
@@ -37,6 +41,9 @@ jobs:
 
       - name: Check release version metadata
         run: npm run check:versions
+
+      - name: Configure optional fork crash reporting
+        run: node scripts/prepare-sentry.mjs
 
       - name: Typecheck
         run: npm run typecheck
@@ -68,6 +75,13 @@ jobs:
       - name: Build standalone ARM64 APK
         working-directory: android
         run: ./gradlew --no-daemon --max-workers=2 assembleRelease -PreactNativeArchitectures=arm64-v8a
+
+      - name: Upload native crash symbols
+        if: env.SENTRY_DISABLE_AUTO_UPLOAD == 'false'
+        run: |
+          symbols=android/app/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib
+          test -d "$symbols"
+          node_modules/.bin/sentry-cli debug-files upload --wait "$symbols"
 
       - name: Verify and name APK
         run: |

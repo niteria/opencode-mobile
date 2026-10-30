@@ -29,8 +29,10 @@ the signature, application ID, label, ARM64 ABI, HTTP support, and URL scheme.
 The fork's `PR182_KEYSTORE_BASE64` Actions secret holds a persistent signing key,
 so later builds can update this app without uninstalling it. Its alias is
 `pr182`; store/key passwords are `android`. The private keystore is kept outside
-the checkout at `~/.local/share/opencode-mobile/pr-182.keystore`. Sentry uploads
-are disabled for this personal build; Expo credentials are not required.
+the checkout at `~/.local/share/opencode-mobile/pr-182.keystore`. Optional Sentry
+reporting and symbol uploads use the fork's own project; see
+[fork Sentry setup](../docs/fork-sentry.md). They stay disabled until configured.
+Expo credentials are not required.
 
 ## Keyboard follow-up
 

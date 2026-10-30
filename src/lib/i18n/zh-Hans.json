@@ -35,6 +35,13 @@
       "disabledNotice": "通知已在系统层面关闭。请在系统设置中启用通知以接收提醒。"
     },
     "privacy": {
+      "testReport": {
+        "label": "发送测试崩溃报告",
+        "description": "向 Sentry 发送测试错误，不会关闭应用",
+        "sending": "正在发送测试报告…",
+        "submitted": "测试报告已加入队列",
+        "failed": "无法提交测试报告。请检查网络连接和崩溃报告设置。"
+      },
       "crashReporting": {
         "label": "崩溃报告与使用分析",
         "description": "分享匿名崩溃报告（Sentry）和使用分析（PostHog），帮助改进 OpenCode。您分享的诊断报告也会发送至我们的支持收件箱。不包含代码或提示词内容。"

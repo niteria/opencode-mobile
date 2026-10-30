@@ -1,0 +1,2 @@
+v0.4.15 — Tool-output scrolling and crash reporting
+Expanded Bash and other tool output capture vertical drags without moving the chat. Long output is no longer cut off at arbitrary line counts. Includes opt-in Sentry crash reports and a Settings test-report button.

@@ -22,6 +22,12 @@ The default branch, **`master`**, combines the rebased
   Initial indexing fetches only the latest message, four sessions at a time, with
   an in-memory cache for unchanged sessions. The list stays usable while indexing.
   Fresh launches open the list, and every chat has a Sessions button to return to it.
+- **Expanded tool output:** vertical swipes stay inside overflowing output, including
+  at its edges. Only the tool header toggles expansion; long output remains scrollable
+  past the previous line limits. Nested diff horizontal scrolling is preserved.
+- **Optional fork crash reporting:** opt-in Sentry reports go to the fork's own project,
+  with build-specific releases and source maps/native symbols. Settings includes a
+  non-crashing test-report action. See [Sentry setup and verification](docs/fork-sentry.md).
 - **Native Android keyboard handling:** Android 15+ reserves IME space at the
   activity root. Older Android retains the header-aware fallback. Emulator
   checks cover multiline input, reopening, both navigation modes, password
@@ -70,7 +76,7 @@ The table distinguishes those imports from adaptations made in this fork.
 - Live-preview testing added `/api/health`, rename, form-cancel and revert-clear
   fallbacks, status-route compatibility, and `sessionID`/partial-session event
   handling that preserves existing session metadata.
-- Android version code **46** is aligned across native/Expo metadata and changelogs;
+- Android version code **48** is aligned across native/Expo metadata and changelogs;
   the existing `cc.agentlabs.opencode.pr182` app ID and signing key support updates.
 
 **Verification:** the SDK was checked against a live 1.18.30 server and an isolated

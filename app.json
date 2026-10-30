@@ -35,7 +35,7 @@
     },
     "android": {
       "package": "cc.agentlabs.opencode.pr182",
-      "versionCode": 46,
+      "versionCode": 48,
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -54,8 +54,7 @@
       [
         "@sentry/react-native/expo",
         {
-          "organization": "vibetechnologies",
-          "project": "opencode-mobile"
+          "url": "https://sentry.io/"
         }
       ],
       [

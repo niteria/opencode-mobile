@@ -1,0 +1,2 @@
+v0.4.15 — Optional fork crash reporting
+Configure the fork's own opt-in Sentry project, upload source maps and native symbols, and identify reports by APK build number.

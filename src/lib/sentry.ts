@@ -14,13 +14,16 @@
 //      lives in ./sentry-noise.ts so it is unit-testable without the RN SDK.
 
 import * as Sentry from "@sentry/react-native"
+import { Platform } from "react-native"
 import appJson from "../../app.json"
+import { sentryRelease } from "./sentry-release"
 import { log } from "./logbuffer"
 import { NoiseGate, eventText, isFatalEvent, isTransportNoise } from "./sentry-noise"
 import type { DiagnosticReport } from "./diagnostics"
 
 const DSN = process.env.EXPO_PUBLIC_SENTRY_DSN
 const APP_VERSION = (appJson as { expo?: { version?: string } }).expo?.version ?? "unknown"
+const identity = sentryRelease(appJson.expo, Platform.OS)
 
 let enabled = false
 let handlersInstalled = false
@@ -39,8 +42,7 @@ export function initSentry() {
   try {
     Sentry.init({
       dsn: DSN,
-      release: `opencode-mobile@${APP_VERSION}`,
-      dist: APP_VERSION,
+      ...identity,
       // Performance tracing off by default; only error + crash capture.
       tracesSampleRate: 0,
       enableAutoSessionTracking: true,
@@ -72,7 +74,8 @@ export function initSentry() {
     })
     enabled = true
     Sentry.setTag("app.version", APP_VERSION)
-    log.info("sentry", "initialized", `release=opencode-mobile@${APP_VERSION}`)
+    Sentry.setTag("app.build", identity.dist)
+    log.info("sentry", "initialized", `release=${identity.release}`)
   } catch (e) {
     log.warn("sentry", "init failed", String(e))
   }
@@ -302,3 +305,16 @@ export function captureDiagnostic(report: DiagnosticReport) {
 // for callers that just want auto-capture without a custom fallback.
 export const wrap = Sentry.wrap
 export const sentryEnabled = () => enabled
+export const sentryConfigured = () => Boolean(DSN)
+
+// A handled, deliberately identifiable exception: verifies the real release
+// bundle/source-map path without crashing the app or including session data.
+export async function sendTestReport(): Promise<string> {
+  if (!enabled) throw new Error("Crash reporting is not enabled")
+  const id = Sentry.captureException(new Error("OpenCode Mobile crash-reporting test"), {
+    tags: { "test.source": "settings" },
+  })
+  // React Native's flush persists the native queue; delivery is asynchronous.
+  if (!await Sentry.flush()) throw new Error("Could not queue the crash report")
+  return id
+}

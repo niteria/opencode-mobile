@@ -103,6 +103,7 @@ export interface MockServerOptions {
    * depend on it landing first.
    */
   seedDiff?: boolean
+  seedToolOutput?: boolean
 }
 
 interface StoredSession {
@@ -213,11 +214,35 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     replyDelayMs = 300,
     seedSessions = false,
     seedDiff = false,
+    seedToolOutput = false,
   } = opts
 
   const sessions = new Map<string, StoredSession>()
   const messagesBySession = new Map<string, StoredMessage[]>()
   const sseClients = new Set<http.ServerResponse>()
+
+  if (seedToolOutput) {
+    const now = Date.now()
+    for (const tool of ["bash", "custom", "edit"]) {
+      const id = `seed-output-${tool}`
+      const output = Array.from({ length: 120 }, (_, i) => `LINE ${String(i + 1).padStart(3, "0")} output text`).join("\n")
+      sessions.set(id, { id, slug: id, projectID: "mock-project", directory: DEFAULT_DIRECTORY,
+        title: `Scroll ${tool} output`, version: "0.0.0-mock", time: { created: now, updated: now } })
+      const messages: StoredMessage[] = Array.from({ length: 10 }, (_, i) => ({
+        info: { id: `${id}-history-${i}`, sessionID: id, role: "user", time: { created: now - 20_000 + i } },
+        parts: [{ id: `${id}-text-${i}`, sessionID: id, messageID: `${id}-history-${i}`, type: "text", text: `CHAT ANCHOR ${i}\nEarlier conversation text` }],
+      }))
+      messages.push({
+        info: { id: `${id}-reply`, sessionID: id, role: "assistant", time: { created: now, completed: now } },
+        parts: [{ id: `${id}-tool`, sessionID: id, messageID: `${id}-reply`, type: "tool", tool,
+          state: { status: "completed", title: `Inspect ${tool} output`,
+            input: tool === "bash" ? { command: "show-output" }
+              : tool === "edit" ? { filePath: "sample.txt", oldString: "before", newString: output + "\n" + "x".repeat(220) + "HORIZONTAL_TARGET" }
+              : { command: "custom" }, output } }],
+      })
+      messagesBySession.set(id, messages)
+    }
+  }
 
   if (seedDiff) {
     const now = Date.now()
@@ -676,13 +701,14 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
   }
 }
 
-function parseArgs(argv: string[]): { port: number; failAuth: boolean; seedSessions: boolean; seedDiff: boolean } {
-  const opts = { port: 4096, failAuth: false, seedSessions: false, seedDiff: false }
+function parseArgs(argv: string[]): { port: number; failAuth: boolean; seedSessions: boolean; seedDiff: boolean; seedToolOutput: boolean } {
+  const opts = { port: 4096, failAuth: false, seedSessions: false, seedDiff: false, seedToolOutput: false }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--port") opts.port = Number(argv[++i])
     else if (argv[i] === "--fail-auth") opts.failAuth = true
     else if (argv[i] === "--seed-sessions") opts.seedSessions = true
     else if (argv[i] === "--seed-diff") opts.seedDiff = true
+    else if (argv[i] === "--seed-tool-output") opts.seedToolOutput = true
   }
   return opts
 }
