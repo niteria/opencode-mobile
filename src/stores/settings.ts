@@ -8,18 +8,21 @@ import type { LocalePreference } from "../lib/i18n/locale-resolve"
 const SETTINGS_KEY = "opencode_settings"
 
 interface Settings {
+  groupSessions: boolean
   pageSize: number
   notifications: Record<Category, boolean>
   locale: LocalePreference
 }
 
 const DEFAULTS: Settings = {
+  groupSessions: false,
   pageSize: 25,
   notifications: { ...defaultPreferences },
   locale: "system",
 }
 
 interface SettingsState extends Settings {
+  setGroupSessions: (grouped: boolean) => Promise<void>
   loaded: boolean
   load: () => Promise<void>
   setPageSize: (size: number) => Promise<void>
@@ -28,7 +31,7 @@ interface SettingsState extends Settings {
 }
 
 function snapshot(get: () => SettingsState): Settings {
-  return { pageSize: get().pageSize, notifications: get().notifications, locale: get().locale }
+  return { groupSessions: get().groupSessions, pageSize: get().pageSize, notifications: get().notifications, locale: get().locale }
 }
 
 async function persist(settings: Settings) {
@@ -38,6 +41,11 @@ async function persist(settings: Settings) {
 export const useSettings = create<SettingsState>((set, get) => ({
   ...DEFAULTS,
   loaded: false,
+
+  setGroupSessions: async (groupSessions) => {
+    set({ groupSessions })
+    await persist(snapshot(get))
+  },
 
   load: async () => {
     const raw = await SecureStore.getItemAsync(SETTINGS_KEY)

@@ -44,6 +44,25 @@ const legacySession = (i: number) => ({
 })
 const modernSession = (i: number) => ({ ...legacySession(i), location: { directory: "/project" } })
 
+test("v2 newest-message lookup skips trailing timeline markers across cursor pages", async (t) => {
+  const server = await serve(t, ({ url }) => {
+    assert.equal(url.pathname, "/api/session/ses_1/message")
+    assert.equal(url.searchParams.get("limit"), "1")
+    if (!url.searchParams.has("cursor")) {
+      assert.equal(url.searchParams.get("order"), "desc")
+      return { body: { data: [{ id: "marker", type: "idle", time: { created: 999 } }], cursor: { next: "older" } } }
+    }
+    assert.equal(url.searchParams.get("cursor"), "older")
+    assert.equal(url.searchParams.has("order"), false)
+    return { body: { data: [{ id: "reply", sessionID: "ses_1", type: "assistant", time: { created: 10, completed: 20 }, content: [] }] } }
+  })
+  const messages = await createClient({ ...server, api: "v2" }).session.messages("ses_1", { limit: 1 })
+  assert.equal(messages.length, 1)
+  assert.equal(messages[0].info.id, "reply")
+  assert.equal(messages[0].info.time.completed, 20)
+  assert.equal(server.requests.length, 2)
+})
+
 test("real transport rejects a global auth challenge and detects v1 after credentials are supplied", async (t) => {
   const server = await serve(t, ({ url, headers }) => {
     if (!headers.authorization) return { status: 401, body: "Unauthorized", headers: { "content-type": "text/plain" } }

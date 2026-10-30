@@ -264,6 +264,14 @@
     }
   },
   "sessionsList": {
+    "navigation": {
+      "search": "Search session titles",
+      "clearSearch": "Clear search",
+      "newestMessage": "Newest message first",
+      "groupProjects": "Group by project",
+      "noMatches": "No sessions match your search",
+      "saveFailed": "Could not save your list preference"
+    },
     "untitledSession": "Untitled Session",
     "time": {
       "justNow": "Just now",

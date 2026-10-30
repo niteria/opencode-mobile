@@ -1,0 +1,2 @@
+v0.4.15 — Session navigation access
+Fresh launches open the sessions list. Every chat has a Sessions button, including chats opened directly from notifications or links. Per-session drafts remain saved.

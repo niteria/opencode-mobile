@@ -78,7 +78,7 @@ A half-open SSE read times out after 45s and cancels its reader. This prevents t
 ### Process recreation
 
 - The last-selected session ID is persisted in SecureStore.
-- On app launch, `app/_layout.tsx` restores the session reference and triggers a background refresh.
+- Fresh app launches open the sessions list. Selecting a session loads its transcript and encrypted draft. Every chat has a Sessions button, including direct-link/notification entry with no existing back stack.
 - Drafts are restored from encrypted per-session storage.
 
 ### Session switching

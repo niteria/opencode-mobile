@@ -11,6 +11,7 @@ import { isColdSessionLoad, isLiveEventForSession } from "../lib/session-load-re
 import { buildPromptParts } from "../lib/composer-prompt"
 import { readSessionDraft, writeSessionDraft } from "../lib/session-drafts"
 import { mergeSession, type SessionUpdate } from "../lib/session-merge"
+import { messageTime, SessionActivityCache } from "../lib/session-navigation"
 
 // Helper to convert API response to our internal format
 function parseMessages(response: MessageWithParts[]): { messages: Message[]; parts: Record<string, Part[]> } {
@@ -30,6 +31,8 @@ function pageSize(): number {
 }
 
 interface SessionsState {
+  activity: Record<string, number>
+  indexingActivity: boolean
   sessions: Session[]
   currentSession: Session | null
   messages: Message[]
@@ -104,6 +107,9 @@ function queueDraftWrite(sessionID: string, text: string) {
 // overwrite the messages/currentSession of a newer selection. Each call takes
 // the next value and only commits its result if still the latest.
 let selectSeq = 0
+let listSeq = 0
+let activityScope: string | undefined
+let activityCache = new SessionActivityCache()
 const refreshSeq = new Map<string, number>()
 const liveRefreshes = new Map<string, { seq: number; updatedMessageIDs: Set<string> }>()
 
@@ -121,6 +127,8 @@ function clientFor(directory?: string): Client | null {
 }
 
 export const useSessions = create<SessionsState>((set, get) => ({
+  activity: {},
+  indexingActivity: false,
   sessions: [],
   currentSession: null,
   messages: [],
@@ -213,6 +221,16 @@ export const useSessions = create<SessionsState>((set, get) => ({
 
   loadSessions: async () => {
     const connState = useConnections.getState()
+    const seq = ++listSeq
+    const scope = connState.activeConnection?.id
+    if (scope !== activityScope) {
+      activityScope = scope
+      activityCache = new SessionActivityCache()
+      set({ activity: {}, sessions: [], indexingActivity: false })
+    }
+    const cache = activityCache
+    const root = connState.client
+    const active = () => seq === listSeq && useConnections.getState().client === root
     // Use a directory-less client so the server returns sessions from ALL projects,
     // not just the one matching the active connection's directory header.
     const client = connState.clientForDirectory(undefined) || connState.client
@@ -226,9 +244,23 @@ export const useSessions = create<SessionsState>((set, get) => ({
       // A directory-less list includes sessions across projects. Each row carries
       // its own directory into the session route so subsequent operations stay scoped.
       const sessions = await client.session.list({ roots: true })
-      set({ sessions, isLoading: false })
+      if (!active()) return
+      set({ sessions, isLoading: false, indexingActivity: true })
+      const baseline = get().activity
+      void cache.load(sessions, (session) =>
+        (connState.clientForDirectory(session.directory) || client).session.messages(session.id, { limit: 1 }), active,
+      ).then((activity) => {
+        if (!active()) return
+        set((state) => {
+          // Preserve message events received while the snapshot was in flight.
+          for (const [id, time] of Object.entries(state.activity)) {
+            if (time !== baseline[id]) activity[id] = Math.max(activity[id] ?? 0, time)
+          }
+          return { activity, indexingActivity: false }
+        })
+      })
     } catch (error) {
-      set({ error: "Failed to load sessions", isLoading: false })
+      if (active()) set({ error: "Failed to load sessions", isLoading: false, indexingActivity: false })
     }
   },
 
@@ -555,15 +587,25 @@ export const useSessions = create<SessionsState>((set, get) => ({
   },
 
   handleEvent: (event) => {
-    const { currentSession } = get()
-    if (!currentSession) return
-
     const props = (event as any).properties || {}
+    // Global message events update list recency even with no transcript open.
+    if (event.type === "message.updated") {
+      const message = (props.info || props.message) as Message | undefined
+      if (message?.sessionID && message.time) {
+        const time = messageTime(message)
+        activityCache.observe(message.sessionID, time)
+        set((state) => (state.activity[message.sessionID] ?? 0) >= time ? state : ({ activity: {
+          ...state.activity, [message.sessionID]: time,
+        } }))
+      }
+    }
+    const { currentSession } = get()
+    if (!currentSession && event.type !== "session.updated") return
 
     switch (event.type) {
       case "message.updated": {
         const message = (props.info || props.message) as Message | undefined
-        if (!message || !isLiveEventForSession(message.sessionID, currentSession.id)) return
+        if (!message || !isLiveEventForSession(message.sessionID, currentSession?.id)) return
         noteLiveMessage(message.sessionID, message.id)
 
         set((state) => ({
@@ -578,6 +620,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
       }
 
       case "message.part.updated": {
+        if (!currentSession) return
         const part = props.part as Part | undefined
         if (!part) return
         // Only handle parts for current session

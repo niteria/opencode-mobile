@@ -161,10 +161,22 @@ def run(apk, output, server_port):
     # beyond the in-memory draft-storage unit tests.
     expected = wait("chat-message-input").get("text")
     assert expected and "Keyboard-check" in expected
+    adb("shell", "input", "keyevent", "KEYCODE_BACK")
+    tap(wait("chat-sessions-button"))
+    wait("session-search")
+    # The newly created empty session is the newest row. Capture its stable ID
+    # and verify its draft before using that same ID after process recreation.
+    row = next(node for node in hierarchy().iter("node")
+               if "session-item-" in node.get("resource-id", ""))
+    session_row = row.get("resource-id").rsplit("/", 1)[-1]
+    tap(row)
+    assert wait("chat-message-input").get("text") == expected
     adb("shell", "input", "keyevent", "KEYCODE_HOME")
     time.sleep(1)
     adb("shell", "am", "force-stop", PACKAGE)
     adb("shell", "am", "start", "-W", "-n", f"{PACKAGE}/cc.agentlabs.opencode.MainActivity")
+    wait("session-search")
+    tap(wait(session_row))
     deadline = time.monotonic() + 30
     while time.monotonic() < deadline:
         node = wait("chat-message-input")

@@ -570,11 +570,23 @@ function createV2Client(config: ClientConfig) {
       // timeline is exhausted (loadOlderMessages wants ALL messages).
       messages: async (sessionID: string, params?: { limit?: number }): Promise<MessageWithParts[]> => {
         if (params?.limit) {
-          const body = await request<{ data: V2Message[] }>(
-            config,
-            `/api/session/${sessionID}/message?order=desc&limit=${params.limit}`,
-          )
-          return toMessageWithParts(body.data || []).reverse()
+          const messages: MessageWithParts[] = []
+          let cursor: string | undefined
+          const seen = new Set<string>()
+          // A v2 timeline can end in idle/model-switch markers. Count actual
+          // messages rather than returning an empty page for a nonempty chat.
+          do {
+            const query = cursor ? `cursor=${encodeURIComponent(cursor)}` : "order=desc"
+            const body = await request<{ data: V2Message[]; cursor?: { next?: string | null } }>(
+              config,
+              `/api/session/${sessionID}/message?${query}&limit=${params.limit}`,
+            )
+            messages.push(...toMessageWithParts(body.data || []))
+            cursor = body.cursor?.next ?? undefined
+            if (cursor && seen.has(cursor)) throw new Error("Message cursor did not advance")
+            if (cursor) seen.add(cursor)
+          } while (cursor && messages.length < params.limit)
+          return messages.slice(0, params.limit).reverse()
         }
         const all: V2Message[] = []
         let cursor: string | null = null

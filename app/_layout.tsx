@@ -33,8 +33,6 @@ function RootLayout() {
   const { loadConnections, isLoading: connectionsLoading, client } = useConnections()
   const sseStarted = useRef(false)
   const wasBackgrounded = useRef(false)
-  const sessionRestoreAttempted = useRef(false)
-  const notificationOpened = useRef(false)
   const notifPermissionRequested = useRef(false)
 
   // Telemetry consent state: null = loading, 'unknown' = show modal, else decided
@@ -52,7 +50,6 @@ function RootLayout() {
     // notifications carry no sessionId (they aren't about a session) — route
     // to the home tab instead of "/session/" (an empty, dead-end route).
     const unsubNotifications = notifications.onTap((data) => {
-      notificationOpened.current = true
       if (data.sessionId) router.push(`/session/${data.sessionId}`)
       else router.push("/")
     })
@@ -83,22 +80,8 @@ function RootLayout() {
     return unsubNotifications
   }, [])
 
-  // Restore only the last selected session reference after Android recreates
-  // the process. The transcript remains server-owned and is fetched by the
-  // session screen; no assistant/tool output is persisted locally.
-  useEffect(() => {
-    if (!client || connectionsLoading || authLoading || consentState === "loading" || sessionRestoreAttempted.current || notificationOpened.current) return
-    sessionRestoreAttempted.current = true
-    void useSessions.getState().loadLastSession().then((last) => {
-      if (!last) return
-      const connections = useConnections.getState()
-      if (last.connectionID && connections.activeConnection?.id !== last.connectionID) return
-      router.replace({
-        pathname: "/session/[id]",
-        params: { id: last.sessionID, ...(last.directory ? { directory: last.directory } : {}) },
-      } as never)
-    })
-  }, [authLoading, client, connectionsLoading, consentState])
+  // Fresh launches stay on the sessions list. Drafts restore when a session
+  // is selected; notification/deep-link navigation remains explicit.
 
   // Re-arm the biometric app-lock when the app leaves the foreground. Without
   // this, "Require Biometric to Open" is bypassable: authenticate() sets

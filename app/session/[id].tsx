@@ -708,6 +708,19 @@ export default function SessionScreen() {
       <Stack.Screen
         options={{
           title: selectedSession?.title || t("session.titleFallback"),
+          headerBackVisible: false,
+          headerLeft: () => (
+            <TouchableOpacity
+              onPress={() => router.dismissTo("/")}
+              accessibilityRole="button"
+              accessibilityLabel={t("nav.sessionsTab")}
+              testID="chat-sessions-button"
+              style={{ flexDirection: "row", alignItems: "center", minHeight: 44, paddingRight: 12 }}
+            >
+              <Ionicons name="chevron-back" size={22} color={isDark ? "#ffffff" : "#0a0a0a"} />
+              <Text style={{ color: isDark ? "#ffffff" : "#0a0a0a" }}>{t("nav.sessionsTab")}</Text>
+            </TouchableOpacity>
+          ),
           headerRight: () => (
             <View style={s.headerRight}>
               {shortDir && (

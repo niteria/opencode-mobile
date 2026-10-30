@@ -22,6 +22,8 @@ import { useTranslation } from "react-i18next"
 import { useSessions } from "../../src/stores/sessions"
 import { useConnections } from "../../src/stores/connections"
 import { useEvents } from "../../src/stores/events"
+import { useSettings } from "../../src/stores/settings"
+import { recentSessions } from "../../src/lib/session-navigation"
 import { isHealthy } from "../../src/lib/sse-lifecycle"
 import { useCatalog } from "../../src/stores/catalog"
 import type BottomSheet from "@gorhom/bottom-sheet"
@@ -50,11 +52,13 @@ function SessionItem({
   isDark,
   onRename,
   onDelete,
+  activity,
 }: {
   session: Session
   isDark: boolean
   onRename: () => void
   onDelete: () => void
+  activity?: number
 }) {
   const { t } = useTranslation()
 
@@ -91,7 +95,7 @@ function SessionItem({
         </View>
         <View style={styles.sessionMetaRow}>
           <Text style={[styles.sessionMeta, isDark && styles.metaDark]}>
-            {formatTime(session.time.updated, t)}
+            {formatTime(activity ?? session.time.created, t)}
             {/* summary is always present but files defaults to 0 until the
                 server populates it — only show the count when it's meaningful,
                 matching the SessionInfo panel's `summary.files > 0` guard (#55) */}
@@ -174,7 +178,12 @@ export default function SessionsScreen() {
   const creatingInFlight = useRef(false)
   const [serverProjects, setServerProjects] = useState<Project[]>([])
 
-  const { sessions, isLoading, error, loadSessions, createSession, deleteSession } = useSessions()
+  const { sessions, activity, indexingActivity, isLoading, error, loadSessions, createSession, deleteSession } = useSessions()
+  const [search, setSearch] = useState("")
+  const grouped = useSettings((state) => state.groupSessions)
+  const settingsLoaded = useSettings((state) => state.loaded)
+  const setGrouped = useSettings((state) => state.setGroupSessions)
+  const visible = useMemo(() => recentSessions(sessions, activity, search), [sessions, activity, search])
   const {
     activeConnection,
     client,
@@ -215,13 +224,13 @@ export default function SessionsScreen() {
   // Flatten sessions into header+item rows. Skip headers entirely when
   // everything lives in one directory — a lone header adds noise, not clarity.
   const rows = useMemo<ListRow[]>(() => {
-    const groups = groupByDirectory(sessions)
-    if (groups.length <= 1) {
-      return sessions.map((session) => ({ type: "session", session }))
+    const groups = groupByDirectory(visible)
+    if (!grouped || groups.length <= 1) {
+      return visible.map((session) => ({ type: "session", session }))
     }
     const out: ListRow[] = []
     for (const group of groups) {
-      const collapsed = collapsedDirs.has(group.directory)
+      const collapsed = !search.trim() && collapsedDirs.has(group.directory)
       out.push({
         type: "header",
         directory: group.directory,
@@ -234,7 +243,7 @@ export default function SessionsScreen() {
       }
     }
     return out
-  }, [sessions, collapsedDirs])
+  }, [visible, grouped, search, collapsedDirs])
 
   // Fetch server-known projects when the new session modal opens
   useEffect(() => {
@@ -561,7 +570,53 @@ export default function SessionsScreen() {
 
       <UpdateBanner isDark={isDark} />
 
+      <View style={styles.navigationControls}>
+        <View style={[styles.searchBox, isDark && styles.searchBoxDark]}>
+          <Ionicons name="search-outline" size={20} color={isDark ? "#aaaaaa" : "#666666"} />
+          <TextInput
+            value={search}
+            onChangeText={setSearch}
+            placeholder={t("sessionsList.navigation.search")}
+            placeholderTextColor={isDark ? "#aaaaaa" : "#666666"}
+            accessibilityLabel={t("sessionsList.navigation.search")}
+            style={[styles.searchInput, isDark && styles.textDark]}
+            autoCapitalize="none"
+            autoCorrect={false}
+            returnKeyType="search"
+            testID="session-search"
+          />
+          {!!search && (
+            <TouchableOpacity onPress={() => setSearch("")} accessibilityLabel={t("sessionsList.navigation.clearSearch")}
+              style={styles.clearSearch} testID="session-search-clear">
+              <Ionicons name="close-circle" size={20} color={isDark ? "#aaaaaa" : "#666666"} />
+            </TouchableOpacity>
+          )}
+        </View>
+        <View style={styles.listOptions}>
+          <View style={styles.recencyLabel}>
+            {indexingActivity && <ActivityIndicator size="small" color={isDark ? "#aaaaaa" : "#666666"} />}
+            <Text style={[styles.sessionMeta, isDark && styles.metaDark]}>{t("sessionsList.navigation.newestMessage")}</Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => void setGrouped(!grouped).catch(() => Alert.alert(t("sessionsList.navigation.saveFailed")))}
+            disabled={!settingsLoaded}
+            accessibilityRole="switch"
+            accessibilityState={{ checked: grouped }}
+            accessibilityLabel={t("sessionsList.navigation.groupProjects")}
+            style={[styles.groupToggle, grouped && styles.groupToggleActive]}
+            testID="session-group-toggle"
+          >
+            <Ionicons name={grouped ? "folder" : "list-outline"} size={16} color={grouped ? "#ffffff" : isDark ? "#dddddd" : "#444444"} />
+            <Text style={[styles.groupToggleText, isDark && styles.textDark, grouped && styles.groupToggleTextActive]}>
+              {t("sessionsList.navigation.groupProjects")}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
       <FlatList
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         data={rows}
         keyExtractor={(row) => (row.type === "header" ? `dir:${row.directory}` : row.session.id)}
         renderItem={({ item: row }) =>
@@ -570,6 +625,7 @@ export default function SessionsScreen() {
           ) : (
             <SessionItem
               session={row.session}
+              activity={activity[row.session.id]}
               isDark={isDark}
               onRename={() => handleRename(row.session)}
               onDelete={() => handleDelete(row.session)}
@@ -586,11 +642,11 @@ export default function SessionsScreen() {
             </View>
           ) : (
             <View style={styles.emptyList}>
-              <Text style={[styles.emptyListText, isDark && styles.metaDark]}>{t("sessionsList.empty.noSessions")}</Text>
+              <Text style={[styles.emptyListText, isDark && styles.metaDark]}>{t(search.trim() ? "sessionsList.navigation.noMatches" : "sessionsList.empty.noSessions")}</Text>
             </View>
           )
         }
-        contentContainerStyle={sessions.length === 0 ? styles.emptyContent : undefined}
+        contentContainerStyle={rows.length === 0 ? styles.emptyContent : { paddingBottom: 90 }}
       />
 
       {/* FAB to create new session */}
@@ -891,6 +947,17 @@ export default function SessionsScreen() {
 }
 
 const styles = StyleSheet.create({
+  navigationControls: { paddingHorizontal: 16, paddingTop: 12, gap: 8 },
+  searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#eeeeee", borderRadius: 10, paddingLeft: 12 },
+  searchBoxDark: { backgroundColor: "#222222" },
+  searchInput: { flex: 1, minHeight: 48, paddingHorizontal: 10, color: "#111111", fontSize: 16 },
+  clearSearch: { padding: 12 },
+  listOptions: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", justifyContent: "space-between", gap: 8, paddingBottom: 8 },
+  recencyLabel: { flexDirection: "row", alignItems: "center", gap: 6 },
+  groupToggle: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, minHeight: 44, borderRadius: 10 },
+  groupToggleActive: { backgroundColor: "#6d28d9" },
+  groupToggleText: { color: "#444444", fontSize: 13 },
+  groupToggleTextActive: { color: "#ffffff" },
   container: {
     flex: 1,
     backgroundColor: "#ffffff",

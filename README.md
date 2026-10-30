@@ -15,6 +15,13 @@ The default branch, **`master`**, combines the rebased
   PermissionV2 requests, session-scoped replies, forms, and foreground/SSE recovery.
 - **Draft and prompt preservation:** encrypted per-session drafts, restoration
   after process recreation, and exact long prompts without the old 10k limit.
+- **Session navigation:** title search across projects, a remembered project-grouping
+  toggle (flat by default), and newest-message-first ordering with live updates.
+  Search reveals matches inside collapsed groups. Recency uses message creation/
+  completion timestamps rather than rename time; empty sessions use creation time.
+  Initial indexing fetches only the latest message, four sessions at a time, with
+  an in-memory cache for unchanged sessions. The list stays usable while indexing.
+  Fresh launches open the list, and every chat has a Sessions button to return to it.
 - **Native Android keyboard handling:** Android 15+ reserves IME space at the
   activity root. Older Android retains the header-aware fallback. Emulator
   checks cover multiline input, reopening, both navigation modes, password
@@ -63,7 +70,7 @@ The table distinguishes those imports from adaptations made in this fork.
 - Live-preview testing added `/api/health`, rename, form-cancel and revert-clear
   fallbacks, status-route compatibility, and `sessionID`/partial-session event
   handling that preserves existing session metadata.
-- Android version code **44** is aligned across native/Expo metadata and changelogs;
+- Android version code **46** is aligned across native/Expo metadata and changelogs;
   the existing `cc.agentlabs.opencode.pr182` app ID and signing key support updates.
 
 **Verification:** the SDK was checked against a live 1.18.30 server and an isolated

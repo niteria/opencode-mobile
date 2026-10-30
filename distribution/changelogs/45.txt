@@ -1,0 +1,2 @@
+v0.4.15 — Session navigation
+Search session titles across projects. Switch between a flat recent list and remembered project grouping. Order sessions by latest message activity, including live updates.

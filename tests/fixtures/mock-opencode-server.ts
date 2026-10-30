@@ -587,6 +587,20 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     // would carry the wrong (or no) x-opencode-directory header and get a 404
     // here, and the flow's session-screen assertions would fail.
     const sessionGetMatch = path.match(/^\/session\/([^/]+)$/)
+    if (method === "PATCH" && sessionGetMatch) {
+      const session = sessions.get(sessionGetMatch[1])
+      if (!session || session.directory !== requestDirectory(req)) return json(res, 404, {})
+      let body = ""
+      req.on("data", (chunk) => (body += chunk))
+      req.on("end", () => {
+        const update = JSON.parse(body || "{}")
+        if (typeof update.title === "string") session.title = update.title
+        session.time.updated = Date.now()
+        broadcast("session.updated", { info: session })
+        json(res, 200, session)
+      })
+      return
+    }
     if (method === "GET" && sessionGetMatch) {
       const sid = sessionGetMatch[1]
       const session = sessions.get(sid)
@@ -604,7 +618,9 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       if (!session || session.directory !== requestDirectory(req)) {
         return json(res, 404, { error: `unknown session ${sid}` })
       }
-      return json(res, 200, messagesBySession.get(sid) || [])
+      const messages = messagesBySession.get(sid) || []
+      const limit = Number(url.searchParams.get("limit"))
+      return json(res, 200, limit > 0 ? messages.slice(-limit) : messages)
     }
 
     const promptMatch = path.match(/^\/session\/([^/]+)\/prompt_async$/)
