@@ -15,10 +15,19 @@ import type { Message } from "./sdk"
  * not yet echoed back) vanishes from the chat until its own event arrives —
  * a "did my message send?" ghosting bug.
  */
-export function mergeIncomingMessage(messages: Message[], message: Message): Message[] {
+export function mergeIncomingMessage(messages: Message[], message: Message, historyTruncated = false): Message[] {
   // Already present (a later update to a message we've seen): replace in place.
   if (messages.some((m) => m.id === message.id)) {
     return messages.map((m) => (m.id === message.id ? message : m))
+  }
+  // The server revises summary.diffs on the original user prompt throughout a
+  // run. If that prompt predates our loaded tail, this is not a new message.
+  // Appending it produces a phantom "You" row because its parts aren't loaded.
+  // Check before matching optimistic sends so stale metadata cannot consume one.
+  if (historyTruncated) {
+    const oldest = messages.reduce((time, item) => item.id.startsWith("temp-")
+      ? time : Math.min(time, item.time.created), Infinity)
+    if (Number.isFinite(oldest) && message.time.created < oldest) return messages
   }
   // First time we see this real message: resolve the oldest matching temp.
   const tempIdx = messages.findIndex((m) => m.id.startsWith("temp-") && m.role === message.role)

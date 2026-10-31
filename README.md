@@ -80,7 +80,7 @@ The table distinguishes those imports from adaptations made in this fork.
 - Live-preview testing added `/api/health`, rename, form-cancel and revert-clear
   fallbacks, status-route compatibility, and `sessionID`/partial-session event
   handling that preserves existing session metadata.
-- Android version code **50** is aligned across native/Expo metadata and changelogs;
+- Android version code **51** is aligned across native/Expo metadata and changelogs;
   the existing `cc.agentlabs.opencode.pr182` app ID and signing key support updates.
 
 **Verification:** the SDK was checked against a live 1.18.30 server and an isolated

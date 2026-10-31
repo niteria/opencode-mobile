@@ -46,3 +46,28 @@ test("does not remove a temp of a different role", () => {
   const out = mergeIncomingMessage([msg("temp-1", "user")], msg("real-a", "assistant"))
   assert.ok(out.some((m) => m.id === "temp-1"))
 })
+
+test("old user summary updates outside the loaded tail do not append empty bubbles or consume queued sends", () => {
+  const list = [
+    { ...msg("recent", "assistant"), time: { created: 100 } },
+    { ...msg("temp-new"), time: { created: 200 } },
+  ]
+  const old = { ...msg("original-user"), time: { created: 10 }, summary: { diffs: [] } }
+  assert.equal(mergeIncomingMessage(list, old, true), list)
+  const fresh = { ...msg("new-user"), time: { created: 200 } }
+  assert.deepEqual(mergeIncomingMessage(list, fresh, true).map((item) => item.id), ["recent", "new-user"])
+})
+
+test("metadata for an already-loaded old prompt still updates in place", () => {
+  const old = { ...msg("original-user"), time: { created: 10 } }
+  const list = [old, { ...msg("recent", "assistant"), time: { created: 100 } }]
+  const updated = { ...old, summary: { diffs: [] } }
+  const result = mergeIncomingMessage(list, updated, true)
+  assert.equal(result[0], updated)
+  assert.equal(result.length, 2)
+})
+
+test("an empty tail or only optimistic rows still accepts the first real event", () => {
+  assert.equal(mergeIncomingMessage([], msg("first"), true).length, 1)
+  assert.equal(mergeIncomingMessage([msg("temp-first")], msg("first"), true)[0].id, "first")
+})

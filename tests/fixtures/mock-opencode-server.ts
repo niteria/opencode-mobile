@@ -105,6 +105,7 @@ export interface MockServerOptions {
   seedDiff?: boolean
   seedToolOutput?: boolean
   seedMemory?: boolean
+  seedMessageUpdates?: boolean
 }
 
 interface StoredSession {
@@ -217,11 +218,25 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     seedDiff = false,
     seedToolOutput = false,
     seedMemory = false,
+    seedMessageUpdates = false,
   } = opts
 
   const sessions = new Map<string, StoredSession>()
   const messagesBySession = new Map<string, StoredMessage[]>()
   const sseClients = new Set<http.ServerResponse>()
+
+  if (seedMessageUpdates) {
+    const now = Date.now()
+    const id = "seed-metadata"
+    sessions.set(id, { id, slug: id, projectID: "mock-project", directory: DEFAULT_DIRECTORY,
+      title: "Old prompt metadata", version: "0.0.0-mock", time: { created: now - 30000, updated: now } })
+    messagesBySession.set(id, Array.from({ length: 30 }, (_, i) => ({
+      info: { id: `metadata-${i}`, sessionID: id, role: (i === 0 ? "user" : "assistant") as StoredMessageInfo["role"],
+        time: { created: now - 30000 + i, completed: now - 30000 + i } },
+      parts: [{ id: `metadata-part-${i}`, messageID: `metadata-${i}`, sessionID: id, type: "text",
+        text: i === 0 ? "ORIGINAL HUMAN PROMPT" : `RESPONSE ${i}` }],
+    })))
+  }
 
   if (seedMemory) {
     const now = Date.now()
@@ -466,6 +481,13 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     res.on("finish", () => {
       console.log(`[mock-opencode-server] ${method} ${path}${url.search} -> ${res.statusCode}`)
     })
+
+    if (seedMessageUpdates && method === "POST" && path === "/test/old-user-update") {
+      const original = messagesBySession.get("seed-metadata")?.[0].info
+      if (!original) return json(res, 404, {})
+      broadcast("message.updated", { info: { ...original, summary: { diffs: [] } } })
+      return json(res, 200, { clients: sseClients.size })
+    }
 
     if (failAuth) {
       unauthorized(res)
@@ -730,7 +752,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
 }
 
 function parseArgs(argv: string[]): MockServerOptions {
-  const opts = { port: 4096, failAuth: false, seedSessions: false, seedDiff: false, seedToolOutput: false, seedMemory: false }
+  const opts = { port: 4096, failAuth: false, seedSessions: false, seedDiff: false, seedToolOutput: false, seedMemory: false, seedMessageUpdates: false }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--port") opts.port = Number(argv[++i])
     else if (argv[i] === "--fail-auth") opts.failAuth = true
@@ -738,6 +760,7 @@ function parseArgs(argv: string[]): MockServerOptions {
     else if (argv[i] === "--seed-diff") opts.seedDiff = true
     else if (argv[i] === "--seed-tool-output") opts.seedToolOutput = true
     else if (argv[i] === "--seed-memory") opts.seedMemory = true
+    else if (argv[i] === "--seed-message-updates") opts.seedMessageUpdates = true
   }
   return opts
 }

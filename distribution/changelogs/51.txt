@@ -1,0 +1,2 @@
+v0.4.15 — Phantom user message fix
+Metadata updates to older prompts outside the loaded history window no longer appear as empty new You bubbles. Real new messages, queued sends, and loading older history remain supported.

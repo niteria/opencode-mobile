@@ -93,3 +93,17 @@ test("leaving a chat clears its transcript and cancels a pending initial load", 
   assert.deepEqual(store.getState().parts, {})
   assert.equal(store.getState().isLoading, false)
 })
+
+test("an old user metadata event outside a paged transcript does not create a phantom row", async () => {
+  const all = history("a", 50)
+  all[0].info.role = "user"
+  setConnection({ session: { get: async () => session("a"), messages: async (_id: string, params: { limit: number }) => all.slice(-params.limit) } })
+  await store.getState().selectSession("a")
+  const loaded = store.getState().messages
+  store.getState().handleEvent({ type: "message.updated", properties: { info: { ...all[0].info, summary: { diffs: [] } } } })
+  assert.equal(store.getState().messages, loaded)
+  assert.equal(store.getState().messages.some((message) => message.role === "user"), false)
+  await store.getState().loadOlderMessages()
+  assert.equal(store.getState().parts[all[0].info.id][0].text, "Message 0")
+  assert.equal(store.getState().messages[0].role, "user")
+})

@@ -609,16 +609,19 @@ export const useSessions = create<SessionsState>((set, get) => ({
       case "message.updated": {
         const message = (props.info || props.message) as Message | undefined
         if (!message || !isLiveEventForSession(message.sessionID, currentSession?.id)) return
-        noteLiveMessage(message.sessionID, message.id)
-
-        set((state) => ({
-          messages: mergeIncomingMessage(state.messages, message),
-          // A live update for the session on screen is proof it has content
-          // to show — clear any stuck spinner even if the initial (or a
-          // redundant re-focus) GET hasn't resolved yet, or never does
-          // (issue #150). Only ever clears, never sets it back to true.
-          isLoading: false,
-        }))
+        set((state) => {
+          const messages = mergeIncomingMessage(state.messages, message, state.hasMore)
+          if (messages === state.messages) return state
+          noteLiveMessage(message.sessionID, message.id)
+          return {
+            messages,
+            // A live update for the session on screen is proof it has content
+            // to show — clear any stuck spinner even if the initial (or a
+            // redundant re-focus) GET hasn't resolved yet, or never does
+            // (issue #150). Only ever clears, never sets it back to true.
+            isLoading: false,
+          }
+        })
         break
       }
 

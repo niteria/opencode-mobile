@@ -54,3 +54,17 @@ back from Sentry with heap/view/workload fields and readable app stack frames.
 These fixes address reproduced memory hazards. Further phone crashes should be
 checked using their new `mobile_memory` context rather than assuming every OOM
 has the same cause.
+
+## Paged-history metadata follow-up (build 51)
+
+The server continues to update `summary.diffs` on an earlier user prompt while
+tools execute. Live inspection confirmed such updates referred to a prompt older
+than the phone's loaded 25-message window. Previously the client appended this
+unknown message at the bottom without its parts, producing an empty **You** row.
+
+Unknown message updates older than a truncated window are now ignored before
+optimistic-message matching. Already-loaded messages still update normally, and
+older history can still be fetched with its actual parts. Tests cover pending
+sends, genuine new events, and loading the old prompt afterward. A native fixture
+reproduced the phantom row on build 50; build 51 suppressed that metadata-only row
+while displaying a genuine new prompt delivered over the same SSE connection.
