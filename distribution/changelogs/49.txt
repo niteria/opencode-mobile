@@ -1,0 +1,2 @@
+v0.4.15 — Memory use on large conversations
+Refresh only the loaded history window and load older messages in pages. Release transcripts when leaving chats. Show oversized Markdown as complete plain text to avoid huge native view trees. Add opt-in heap/view/workload counts to crash reports.

@@ -17,6 +17,7 @@ import * as Sentry from "@sentry/react-native"
 import { Platform } from "react-native"
 import appJson from "../../app.json"
 import { sentryRelease } from "./sentry-release"
+import { startMemoryDiagnostics, stopMemoryDiagnostics, refreshMemoryContext } from "./memory-diagnostics"
 import { log } from "./logbuffer"
 import { NoiseGate, eventText, isFatalEvent, isTransportNoise } from "./sentry-noise"
 import type { DiagnosticReport } from "./diagnostics"
@@ -73,6 +74,7 @@ export function initSentry() {
       },
     })
     enabled = true
+    startMemoryDiagnostics()
     Sentry.setTag("app.version", APP_VERSION)
     Sentry.setTag("app.build", identity.dist)
     log.info("sentry", "initialized", `release=${identity.release}`)
@@ -83,6 +85,7 @@ export function initSentry() {
 }
 
 export async function disableSentry() {
+  stopMemoryDiagnostics()
   if (!enabled) return
   enabled = false
   await Sentry.close()
@@ -311,6 +314,7 @@ export const sentryConfigured = () => Boolean(DSN)
 // bundle/source-map path without crashing the app or including session data.
 export async function sendTestReport(): Promise<string> {
   if (!enabled) throw new Error("Crash reporting is not enabled")
+  await refreshMemoryContext()
   const id = Sentry.captureException(new Error("OpenCode Mobile crash-reporting test"), {
     tags: { "test.source": "settings" },
   })

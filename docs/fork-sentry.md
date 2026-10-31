@@ -43,11 +43,17 @@ Settings offers **Send test crash report** after opting in. It queues a handled
 exception without closing the app. The confirmation displays its event ID;
 queuing alone is not proof of server receipt.
 
-Build 47 passed the emulator opt-in/opt-out UI checks and sent test exceptions;
-the owner confirmed receiving Sentry's email. Hermes artifact bundle processing
-and native debug-file processing succeeded. The setup token is upload-only, so
-reading back the event's symbolicated stack returned HTTP 403. Dashboard
-confirmation of readable source frames remains outstanding.
+The owner confirmed the initial test email. A separate read token now permits
+event inspection: build 48's application frames resolved to `src/lib/sentry.ts`
+and `app/(tabs)/settings.tsx`. Build 49's test event
+`240fcb95798d482daaf7f9dd6a32a345` also has readable app frames and a verified
+`mobile_memory` context. The build/upload token itself remains upload-only.
+
+With reporting enabled, memory sampling runs every ten seconds in the foreground
+and around transcript loads. Reports include Java heap usage/limit, native heap
+usage, native view count, loaded message/part/tool counts, character counts and
+requested history limit. No transcript text, commands, session titles or paths
+are added by these diagnostics. Sampling stops when consent is revoked.
 
 The local build configuration is stored privately outside the checkout at
 `~/.local/share/opencode-mobile/sentry.json` (mode 0600). It is not a flake input.

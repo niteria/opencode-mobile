@@ -28,6 +28,10 @@ The default branch, **`master`**, combines the rebased
 - **Optional fork crash reporting:** opt-in Sentry reports go to the fork's own project,
   with build-specific releases and source maps/native symbols. Settings includes a
   non-crashing test-report action. See [Sentry setup and verification](docs/fork-sentry.md).
+- **Large-conversation memory use:** automatic refreshes keep the loaded message window;
+  older history loads one page at a time. Leaving a chat releases its transcript.
+  Oversized Markdown is shown as complete plain text instead of mounting thousands
+  of native cells. Opt-in crash reports include heap/view/workload counts.
 - **Native Android keyboard handling:** Android 15+ reserves IME space at the
   activity root. Older Android retains the header-aware fallback. Emulator
   checks cover multiline input, reopening, both navigation modes, password
@@ -76,7 +80,7 @@ The table distinguishes those imports from adaptations made in this fork.
 - Live-preview testing added `/api/health`, rename, form-cancel and revert-clear
   fallbacks, status-route compatibility, and `sessionID`/partial-session event
   handling that preserves existing session metadata.
-- Android version code **48** is aligned across native/Expo metadata and changelogs;
+- Android version code **50** is aligned across native/Expo metadata and changelogs;
   the existing `cc.agentlabs.opencode.pr182` app ID and signing key support updates.
 
 **Verification:** the SDK was checked against a live 1.18.30 server and an isolated

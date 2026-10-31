@@ -220,7 +220,7 @@ async function resyncBusySessions() {
           : connState.client
         if (!client) return
 
-        const response = await client.session.messages(sessionID)
+        const response = await client.session.messages(sessionID, { limit: 1 })
         const messages = (response || []).map((m) => m.info)
         if (!isSessionActuallyIdle(messages)) return // server says still busy - leave it alone
 

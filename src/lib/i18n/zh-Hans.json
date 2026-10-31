@@ -383,6 +383,10 @@
     "unlockButton": "解锁"
   },
   "chat": {
+    "memory": {
+      "plainText": "长消息 · 纯文本视图",
+      "loadOlder": "加载较早的消息"
+    },
     "permissionPrompt": {
       "title": "需要权限",
       "deny": "拒绝",

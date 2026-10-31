@@ -104,6 +104,7 @@ export interface MockServerOptions {
    */
   seedDiff?: boolean
   seedToolOutput?: boolean
+  seedMemory?: boolean
 }
 
 interface StoredSession {
@@ -215,15 +216,40 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     seedSessions = false,
     seedDiff = false,
     seedToolOutput = false,
+    seedMemory = false,
   } = opts
 
   const sessions = new Map<string, StoredSession>()
   const messagesBySession = new Map<string, StoredMessage[]>()
   const sseClients = new Set<http.ServerResponse>()
 
+  if (seedMemory) {
+    const now = Date.now()
+    for (const [id, title] of [["seed-memory", "Long history memory check"], ["seed-table", "Large table memory check"]]) {
+      sessions.set(id, { id, slug: id, projectID: "mock-project", directory: DEFAULT_DIRECTORY,
+        title, version: "0.0.0-mock", time: { created: now, updated: now } })
+    }
+    messagesBySession.set("seed-memory", Array.from({ length: 1000 }, (_, i) => {
+      const id = `history-${String(i).padStart(5, "0")}`
+      return {
+        info: { id, sessionID: "seed-memory", role: "assistant" as const, time: { created: now - 1000 + i, completed: now - 1000 + i } },
+        parts: [{ id: `${id}-text`, messageID: id, sessionID: "seed-memory", type: "text", text: `HISTORY ${i}` },
+          ...(i < 975 ? Array.from({ length: 8 }, (_, j) => ({ id: `${id}-tool-${j}`, messageID: id, sessionID: "seed-memory", type: "tool", tool: "bash",
+            state: { status: "completed" as const, input: { command: "memory-fixture" }, output: `OUTPUT ${i}/${j}\n` + "fixture output line\n".repeat(120) },
+          })) : [])],
+      }
+    }))
+    const table = "| Row | Name | Value | State |\n| --- | --- | --- | --- |\n" +
+      Array.from({ length: 6000 }, (_, i) => `| ROW ${i + 1} | fixture | ${i} | done |`).join("\n")
+    messagesBySession.set("seed-table", [{
+      info: { id: "table-message", sessionID: "seed-table", role: "assistant", time: { created: now, completed: now } },
+      parts: [{ id: "table-text", messageID: "table-message", sessionID: "seed-table", type: "text", text: table }],
+    }])
+  }
+
   if (seedToolOutput) {
     const now = Date.now()
-    for (const tool of ["bash", "custom", "edit"]) {
+    for (const tool of ["bash", "custom", "edit", "apply_patch", "patch_fallback"]) {
       const id = `seed-output-${tool}`
       const output = Array.from({ length: 120 }, (_, i) => `LINE ${String(i + 1).padStart(3, "0")} output text`).join("\n")
       sessions.set(id, { id, slug: id, projectID: "mock-project", directory: DEFAULT_DIRECTORY,
@@ -234,11 +260,13 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
       }))
       messages.push({
         info: { id: `${id}-reply`, sessionID: id, role: "assistant", time: { created: now, completed: now } },
-        parts: [{ id: `${id}-tool`, sessionID: id, messageID: `${id}-reply`, type: "tool", tool,
+        parts: [{ id: `${id}-tool`, sessionID: id, messageID: `${id}-reply`, type: "tool", tool: tool === "patch_fallback" ? "apply_patch" : tool,
           state: { status: "completed", title: `Inspect ${tool} output`,
             input: tool === "bash" ? { command: "show-output" }
               : tool === "edit" ? { filePath: "sample.txt", oldString: "before", newString: output + "\n" + "x".repeat(220) + "HORIZONTAL_TARGET" }
-              : { command: "custom" }, output } }],
+              : tool === "apply_patch" ? { patchText: "*** Begin Patch\n*** Update File: sample.txt\n@@\n-old content\n+PATCH CONTENT VISIBLE\n*** End Patch" }
+              : { command: "custom" },
+            output: tool === "apply_patch" || tool === "patch_fallback" ? "Success. Updated the following files:\nM sample.txt" : output } }],
       })
       messagesBySession.set(id, messages)
     }
@@ -436,7 +464,7 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
     // Per-request logging: proves whether the request ever reached the mock
     // at all (attributes transport vs. app-side rendering for issue #90).
     res.on("finish", () => {
-      console.log(`[mock-opencode-server] ${method} ${path} -> ${res.statusCode}`)
+      console.log(`[mock-opencode-server] ${method} ${path}${url.search} -> ${res.statusCode}`)
     })
 
     if (failAuth) {
@@ -701,14 +729,15 @@ export function createMockOpencodeServer(opts: MockServerOptions) {
   }
 }
 
-function parseArgs(argv: string[]): { port: number; failAuth: boolean; seedSessions: boolean; seedDiff: boolean; seedToolOutput: boolean } {
-  const opts = { port: 4096, failAuth: false, seedSessions: false, seedDiff: false, seedToolOutput: false }
+function parseArgs(argv: string[]): MockServerOptions {
+  const opts = { port: 4096, failAuth: false, seedSessions: false, seedDiff: false, seedToolOutput: false, seedMemory: false }
   for (let i = 0; i < argv.length; i++) {
     if (argv[i] === "--port") opts.port = Number(argv[++i])
     else if (argv[i] === "--fail-auth") opts.failAuth = true
     else if (argv[i] === "--seed-sessions") opts.seedSessions = true
     else if (argv[i] === "--seed-diff") opts.seedDiff = true
     else if (argv[i] === "--seed-tool-output") opts.seedToolOutput = true
+    else if (argv[i] === "--seed-memory") opts.seedMemory = true
   }
   return opts
 }

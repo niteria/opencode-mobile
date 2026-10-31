@@ -122,6 +122,7 @@ export default function SessionScreen() {
     hasMore,
     error,
     selectSession,
+    releaseSession,
     loadDraft,
     setDraft,
     clearDraft,
@@ -386,8 +387,11 @@ export default function SessionScreen() {
         const c = directory ? (connState.clientForDirectory(directory) ?? connState.client) : connState.client
         if (c) refreshPending(c, id)
       })
-      return () => { focused = false }
-    }, [id, directory, loadDraft, selectSession]),
+      return () => {
+        focused = false
+        releaseSession(id)
+      }
+    }, [id, directory, loadDraft, selectSession, releaseSession]),
   )
 
   // Sync model chip from latest assistant message
@@ -826,6 +830,9 @@ export default function SessionScreen() {
             <FlatList
               ref={flatListRef}
               data={messageData}
+              windowSize={5}
+              initialNumToRender={8}
+              maxToRenderPerBatch={6}
               inverted
               keyExtractor={(item) => item.message.id}
               renderItem={({ item }) => (

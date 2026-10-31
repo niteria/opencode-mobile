@@ -187,7 +187,7 @@ export function SessionInfo({
               <Ionicons name="download-outline" size={14} color={isDark ? "#888888" : "#666666"} />
             )}
             <Text style={[s.actionText, isDark && s.dimDark]}>
-              {loadingAll ? t("chat.sessionInfo.loading") : t("chat.sessionInfo.loadAllMessages")}
+              {loadingAll ? t("chat.sessionInfo.loading") : t("chat.memory.loadOlder")}
             </Text>
           </TouchableOpacity>
         )}

@@ -12,6 +12,8 @@ import { buildPromptParts } from "../lib/composer-prompt"
 import { readSessionDraft, writeSessionDraft } from "../lib/session-drafts"
 import { mergeSession, type SessionUpdate } from "../lib/session-merge"
 import { messageTime, SessionActivityCache } from "../lib/session-navigation"
+import { transcriptLimit, transcriptStats } from "../lib/transcript-memory"
+import { noteMemory } from "../lib/memory-diagnostics"
 
 // Helper to convert API response to our internal format
 function parseMessages(response: MessageWithParts[]): { messages: Message[]; parts: Record<string, Part[]> } {
@@ -49,6 +51,7 @@ interface SessionsState {
   // Actions
   loadSessions: () => Promise<void>
   selectSession: (sessionID: string, directory?: string) => Promise<void>
+  releaseSession: (sessionID: string) => void
   loadLastSession: () => Promise<LastSessionReference | null>
   loadDraft: (sessionID: string) => Promise<string>
   setDraft: (sessionID: string, text: string) => void
@@ -65,7 +68,7 @@ interface SessionsState {
     variant?: string,
   ) => Promise<void>
   abortSession: () => Promise<void>
-  refreshMessages: () => Promise<void>
+  refreshMessages: (limit?: number) => Promise<void>
 
   // Revert (edit sent message) / unrevert (undo the pending revert)
   revertToMessage: (messageID: string) => Promise<RevertResult>
@@ -107,6 +110,7 @@ function queueDraftWrite(sessionID: string, text: string) {
 // overwrite the messages/currentSession of a newer selection. Each call takes
 // the next value and only commits its result if still the latest.
 let selectSeq = 0
+let selectTarget: string | null = null
 let listSeq = 0
 let activityScope: string | undefined
 let activityCache = new SessionActivityCache()
@@ -274,6 +278,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
     }
 
     const seq = ++selectSeq
+    selectTarget = sessionID
     addBreadcrumb({ category: "session", message: "select", data: { sessionID, hasDirectory: Boolean(directory) } })
     // Re-selecting the session already shown on screen (e.g. #121's
     // useFocusEffect resync firing again on re-entry) is a background
@@ -290,11 +295,14 @@ export const useSessions = create<SessionsState>((set, get) => ({
       // Reset optimistic sending — SSE sessionStatus is the source of truth
       set((state) => ({
         isLoading: isColdLoad ? true : state.isLoading,
+        ...(isColdLoad ? { currentSession: null, messages: [], parts: {} } : {}),
         error: null,
         hasMore: false,
         loadingMore: false,
         sending: { ...state.sending, [sessionID]: false },
       }))
+
+      noteMemory("session.load", { request_limit: pageSize(), ...transcriptStats(get().messages, get().parts) })
 
       const [session, messagesResponse] = await Promise.all([
         client.session.get(sessionID),
@@ -307,6 +315,7 @@ export const useSessions = create<SessionsState>((set, get) => ({
 
       // Parse the API response format: array of { info, parts }
       const { messages, parts } = parseMessages(messagesResponse)
+      noteMemory("session.loaded", { request_limit: pageSize(), ...transcriptStats(messages, parts) })
 
       set({
         currentSession: session,
@@ -328,34 +337,24 @@ export const useSessions = create<SessionsState>((set, get) => ({
     }
   },
 
+  releaseSession: (sessionID) => {
+    if (selectTarget !== sessionID) return
+    selectSeq++
+    selectTarget = null
+    set({ currentSession: null, messages: [], parts: {}, hasMore: false, loadingMore: false, isLoading: false })
+    noteMemory("session.released", transcriptStats([], {}))
+  },
+
   loadOlderMessages: async () => {
-    const client = clientFor(get().currentSession?.directory)
     const session = get().currentSession
-    if (!client || !session) return
+    if (!session) return
     if (get().loadingMore || !get().hasMore) return
-
-    try {
-      set({ loadingMore: true })
-
-      // Fetch ALL messages for this session
-      const response = await client.session.messages(session.id)
-      const { messages: all, parts: allParts } = parseMessages(response)
-
-      // Merge: use all messages from full fetch, but keep any temp/optimistic messages
-      const existing = get().messages
-      const temp = existing.filter((m) => m.id.startsWith("temp-"))
-      const merged = [...all, ...temp]
-
-      set({
-        messages: merged,
-        parts: { ...allParts, ...Object.fromEntries(temp.map((m) => [m.id, get().parts[m.id] || []])) },
-        loadingMore: false,
-        hasMore: false, // We loaded everything
-      })
-    } catch (error) {
-      console.error("Failed to load older messages:", error)
-      set({ loadingMore: false })
-    }
+    const selection = selectSeq
+    set({ loadingMore: true })
+    // V1 supports a tail limit, not a before cursor. Increase it one page at a
+    // time rather than turning the first end-of-list event into a full download.
+    await get().refreshMessages(transcriptLimit(get().messages, pageSize(), true))
+    if (selection === selectSeq && get().currentSession?.id === session.id) set({ loadingMore: false })
   },
 
   createSession: async (title) => {
@@ -502,18 +501,21 @@ export const useSessions = create<SessionsState>((set, get) => ({
     }
   },
 
-  refreshMessages: async () => {
+  refreshMessages: async (requestedLimit) => {
     const client = clientFor(get().currentSession?.directory)
     const session = get().currentSession
     if (!client || !session) return
+    const selection = selectSeq
+    const limit = requestedLimit ?? transcriptLimit(get().messages, pageSize())
     const seq = (refreshSeq.get(session.id) ?? 0) + 1
     refreshSeq.set(session.id, seq)
     const liveRefresh = { seq, updatedMessageIDs: new Set<string>() }
     liveRefreshes.set(session.id, liveRefresh)
 
     try {
-      const response = await client.session.messages(session.id)
-      if (get().currentSession?.id !== session.id || refreshSeq.get(session.id) !== seq) return
+      noteMemory("session.refresh", { request_limit: limit, ...transcriptStats(get().messages, get().parts) })
+      const response = await client.session.messages(session.id, { limit })
+      if (selection !== selectSeq || get().currentSession?.id !== session.id || refreshSeq.get(session.id) !== seq) return
       const snapshot = parseMessages(response)
       const current = get()
       const serverMessages = new Map(snapshot.messages.map((message) => [message.id, message]))
@@ -529,9 +531,10 @@ export const useSessions = create<SessionsState>((set, get) => ({
         }
       }
       const messages = [...serverMessages.values()].sort((a, b) => a.time.created - b.time.created)
-      set({ messages, parts: currentParts })
+      noteMemory("session.refreshed", { request_limit: limit, ...transcriptStats(messages, currentParts) })
+      set({ messages, parts: currentParts, hasMore: response.length >= limit })
     } catch (error) {
-      if (get().currentSession?.id !== session.id || refreshSeq.get(session.id) !== seq) return
+      if (selection !== selectSeq || get().currentSession?.id !== session.id || refreshSeq.get(session.id) !== seq) return
       set({ error: "Failed to refresh messages" })
     } finally {
       if (liveRefreshes.get(session.id) === liveRefresh) liveRefreshes.delete(session.id)

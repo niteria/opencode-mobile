@@ -13,6 +13,8 @@ import { useEvents } from "../src/stores/events"
 import { useCatalog } from "../src/stores/catalog"
 import { useSessions } from "../src/stores/sessions"
 import { useSettings } from "../src/stores/settings"
+import { setMemoryProvider } from "../src/lib/memory-diagnostics"
+import { transcriptStats } from "../src/lib/transcript-memory"
 import { AuthGate } from "../src/components/AuthGate"
 import { ErrorBoundary } from "../src/components/ErrorBoundary"
 import { TelemetryConsentModal } from "../src/components/TelemetryConsentModal"
@@ -39,6 +41,10 @@ function RootLayout() {
   const [consentState, setConsentState] = useState<"loading" | "unknown" | "decided">("loading")
 
   useEffect(() => {
+    setMemoryProvider(() => {
+      const state = useSessions.getState()
+      return { ...transcriptStats(state.messages, state.parts), session_list_count: state.sessions.length }
+    })
     initAuth()
     loadConnections()
     useSettings.getState().load()

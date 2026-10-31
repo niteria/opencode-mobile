@@ -22,6 +22,7 @@ def main():
     parser.add_argument("apk")
     parser.add_argument("output", type=Path)
     parser.add_argument("--server-port", type=int, default=4197)
+    parser.add_argument("--patch-only", action="store_true")
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
     ui.adb("install", "-r", args.apk)
@@ -44,7 +45,7 @@ def main():
         numbers = [int(n) for n in re.findall(r"LINE\s+(\d{3})\b", text, re.I)]
         return numbers, text
 
-    for tool in ("bash", "custom", "edit"):
+    for tool in (() if args.patch_only else ("bash", "custom", "edit")):
         sid = f"seed-output-{tool}"
         toggle = f"tool-toggle-{sid}-tool"
         output = f"tool-output-{sid}-tool"
@@ -111,6 +112,20 @@ def main():
         assert current is None or ui.bounds(current) != anchor, "Outside swipe could not scroll chat"
         ui.tap(ui.wait("chat-sessions-button"))
         results.append({"tool": tool, "pass": True, "last_line": 120})
+
+    for tool in ("apply_patch", "patch_fallback"):
+        sid = f"seed-output-{tool}"
+        ui.tap(ui.wait(f"session-item-{sid}"))
+        ui.tap(ui.wait(f"tool-toggle-{sid}-tool"))
+        ui.wait(f"tool-output-{sid}-tool")
+        text = "\n".join(n.get("text", "") for n in ui.hierarchy().iter("node"))
+        if tool == "apply_patch":
+            assert "PATCH CONTENT VISIBLE" in text, "Current patchText payload rendered empty"
+            assert "*** Begin Patch" in text
+        assert "Success. Updated the following files:" in text, "Patch result summary missing"
+        (args.output / f"{tool}.png").write_bytes(ui.adb("exec-out", "screencap", "-p"))
+        ui.tap(ui.wait("chat-sessions-button"))
+        results.append({"tool": tool, "pass": True})
     (args.output / "results.json").write_text(json.dumps(results, indent=2) + "\n")
     print(json.dumps(results))
 

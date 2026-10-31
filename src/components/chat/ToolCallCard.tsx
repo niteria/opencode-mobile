@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next"
 import type { Part } from "../../lib/sdk"
 import { DiffView } from "./DiffView"
 import { ToolOutputScroll } from "../ToolOutputScroll"
+import { patchInputText } from "../../lib/patch-input"
 
 const TOOL_ICONS: Record<string, string> = {
   read: "glasses-outline",
@@ -137,16 +138,18 @@ function EditDetail({ input, output, isDark }: { input: unknown; output: unknown
   )
 }
 
-function PatchDetail({ input, isDark }: { input: unknown; isDark: boolean }) {
-  const patch = typeof input === "object" && input !== null ? (input as Record<string, unknown>).patch : undefined
+function PatchDetail({ input, output, isDark }: { input: unknown; output: unknown; isDark: boolean }) {
+  const patch = patchInputText(input)
+  if (!patch) return <GenericDetail input={input} output={output} isDark={isDark} />
   return (
     <View style={s.detailSection}>
-      {typeof patch === "string" && patch.length > 0 && (
-        <View style={[s.codeBlock, isDark && s.codeBlockDark]}>
-          <Text style={[s.codePre, isDark && s.codePteDark]} selectable={Platform.OS === "ios"}>
-            {patch}
-          </Text>
-        </View>
+      <View style={[s.codeBlock, isDark && s.codeBlockDark]}>
+        <Text style={[s.codePre, isDark && s.codePteDark]} selectable={Platform.OS === "ios"}>
+          {patch}
+        </Text>
+      </View>
+      {typeof output === "string" && output.length > 0 && (
+        <Text style={[s.detailMeta, isDark && s.detailMetaDark]}>{output}</Text>
       )}
     </View>
   )
@@ -269,7 +272,7 @@ function ToolDetail({ tool, isDark }: { tool: Part; isDark: boolean }) {
     case "edit":
       return <EditDetail input={input} output={output} isDark={isDark} />
     case "apply_patch":
-      return <PatchDetail input={input} isDark={isDark} />
+      return <PatchDetail input={input} output={output} isDark={isDark} />
     case "glob":
     case "grep":
     case "list":

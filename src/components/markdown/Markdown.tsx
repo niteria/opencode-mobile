@@ -3,6 +3,8 @@ import { View, Text, useColorScheme, Platform, type StyleProp, type ViewStyle, t
 import { useMarkdown, Renderer } from "react-native-marked"
 import { CodeBlock } from "./CodeBlock"
 import { WideScroll } from "../WideScroll"
+import { useTranslation } from "react-i18next"
+import { richMarkdownAllowed } from "../../lib/transcript-memory"
 // Transitive deps of react-native-marked, used to mirror its own MDTable
 // structure inside the forgiving scroller.
 // eslint-disable-next-line import/no-extraneous-dependencies
@@ -178,6 +180,22 @@ interface Props {
 }
 
 export function Markdown({ children }: Props) {
+  const isDark = useColorScheme() === "dark"
+  const { t } = useTranslation()
+  if (!richMarkdownAllowed(children)) {
+    return (
+      <View testID="large-message-plain-text">
+        <Text style={{ color: isDark ? "#aaaaaa" : "#666666", fontSize: 12, marginBottom: 6 }}>
+          {t("chat.memory.plainText")}
+        </Text>
+        <Text style={(isDark ? darkTheme : lightTheme).text}>{children}</Text>
+      </View>
+    )
+  }
+  return <RichMarkdown>{children}</RichMarkdown>
+}
+
+function RichMarkdown({ children }: Props) {
   const isDark = useColorScheme() === "dark"
   const theme = isDark ? darkTheme : lightTheme
 

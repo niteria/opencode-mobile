@@ -1,0 +1,2 @@
+v0.4.15 — Patch tool details
+Expanded apply_patch cards now read the current patchText field as well as legacy patch input. Display the result summary as a fallback instead of an empty box. Includes build 49's memory fixes and diagnostics.

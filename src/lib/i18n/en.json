@@ -383,6 +383,10 @@
     "unlockButton": "Unlock"
   },
   "chat": {
+    "memory": {
+      "plainText": "Large message · plain text view",
+      "loadOlder": "Load older messages"
+    },
     "permissionPrompt": {
       "title": "Permission Required",
       "deny": "Deny",
