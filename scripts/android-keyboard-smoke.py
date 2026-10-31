@@ -14,6 +14,7 @@ import re
 import shlex
 import subprocess
 import struct
+import sys
 import time
 import xml.etree.ElementTree as ET
 
@@ -189,6 +190,31 @@ def run(apk, output, server_port):
     return results
 
 
+def collect_diagnostics(output):
+    """Optional artifacts must not replace the geometry/draft test result."""
+    status = {}
+    for name, command in (
+        ("logcat.txt", ["adb", "logcat", "-d"]),
+        ("last-screen.png", ["adb", "exec-out", "screencap", "-p"]),
+    ):
+        try:
+            result = subprocess.run(command, capture_output=True, timeout=45)
+            status[name] = {"returncode": result.returncode, "stderr": result.stderr.decode(errors="replace")}
+            # logcat can return useful partial output even when logd closes the
+            # stream. Don't save a failed screencap as a supposedly valid PNG.
+            if result.returncode == 0 or name == "logcat.txt":
+                (output / name).write_bytes(result.stdout)
+            if result.returncode:
+                print(f"Warning: optional {name} collection exited {result.returncode}", file=sys.stderr)
+        except (OSError, subprocess.TimeoutExpired) as error:
+            status[name] = {"error": str(error)}
+            print(f"Warning: optional {name} collection failed: {error}", file=sys.stderr)
+    try:
+        (output / "diagnostics-status.json").write_text(json.dumps(status, indent=2) + "\n")
+    except OSError as error:
+        print(f"Warning: could not save diagnostic collection status: {error}", file=sys.stderr)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("apk")
@@ -207,8 +233,7 @@ def main():
         else:
             assert passed, "Composer or send button is not positioned correctly above the keyboard"
     finally:
-        (args.output / "logcat.txt").write_bytes(adb("logcat", "-d"))
-        (args.output / "last-screen.png").write_bytes(adb("exec-out", "screencap", "-p"))
+        collect_diagnostics(args.output)
 
 
 if __name__ == "__main__":

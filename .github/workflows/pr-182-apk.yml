@@ -140,6 +140,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Test keyboard smoke result handling
+        run: python3 scripts/test-android-keyboard-smoke.py
+
       - uses: actions/setup-node@v6
         with:
           node-version: 24
